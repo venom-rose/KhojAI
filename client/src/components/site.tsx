@@ -12,27 +12,197 @@ export function Logo({ inverse = false }: { inverse?: boolean }) {
   );
 }
 
+import { useAuth } from "@/contexts/AuthContext";
+import { FolderLock, LogOut, MessageSquareText, User } from "lucide-react";
+
 export function SiteHeader({ dark = false }: { dark?: boolean }) {
   const [location] = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const { user, isAuthenticated, logout } = useAuth();
+
   useEffect(() => { const onScroll = () => setScrolled(window.scrollY > 28); window.addEventListener("scroll", onScroll); return () => window.removeEventListener("scroll", onScroll); }, []);
   const nav = [{ href: "/discover", label: "Discover" }, { href: "/planner", label: "AI Trip Planner" }, { href: "/community", label: "Community" }, { href: "/about", label: "About" }];
   const inverse = dark && !scrolled;
+
+  const openSearch = () => window.dispatchEvent(new CustomEvent("khojai:open_search"));
+  const openChat = () => window.dispatchEvent(new CustomEvent("khojai:open_chat"));
+  const openVault = () => window.dispatchEvent(new CustomEvent("khojai:open_vault"));
+  const openAuth = () => window.dispatchEvent(new CustomEvent("khojai:open_auth"));
+
   return (
     <header className={`fixed inset-x-0 top-0 z-50 transition-all duration-300 ${scrolled ? "border-b border-line/70 bg-paper/92 text-ink shadow-[0_8px_30px_rgba(30,35,25,0.06)] backdrop-blur-xl" : inverse ? "bg-transparent text-white" : "border-b border-line/70 bg-paper/92 text-ink backdrop-blur-xl"}`}>
-      <div className="container flex h-[76px] items-center justify-between gap-6">
+      <div className="container flex h-[76px] items-center justify-between gap-4">
         <Logo inverse={inverse} />
-        <nav className="hidden items-center gap-7 lg:flex" aria-label="Primary navigation">
+        
+        {/* Navigation links */}
+        <nav className="hidden items-center gap-6 lg:flex" aria-label="Primary navigation">
           {nav.map((item) => <Link key={item.href} href={item.href} className={`relative py-2 text-[13px] font-medium transition-colors ${location === item.href ? "text-saffron" : inverse ? "text-white/75 hover:text-white" : "text-ink/65 hover:text-ink"}`}>{item.label}{location === item.href && <span className="absolute -bottom-1 left-0 h-px w-full bg-saffron" />}</Link>)}
         </nav>
-        <div className="hidden items-center gap-3 lg:flex">
-          <Link href="/contribute" className={`px-3 py-2 text-[13px] font-medium ${inverse ? "text-white/80 hover:text-white" : "text-ink/65 hover:text-ink"}`}>Contribute</Link>
-          <Link href="/planner" className="inline-flex items-center gap-2 rounded-full bg-saffron px-4 py-2.5 text-[13px] font-semibold text-white shadow-[0_8px_20px_rgba(197,101,58,0.18)] transition hover:-translate-y-0.5 hover:bg-[#b95a36]">Plan my trip <ArrowUpRight size={14} /></Link>
+
+        {/* Global Action Bar */}
+        <div className="hidden items-center gap-2.5 md:flex">
+          {/* Omnisearch trigger */}
+          <button
+            type="button"
+            onClick={openSearch}
+            className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium transition ${
+              inverse
+                ? "border-white/20 bg-white/10 text-white/80 hover:bg-white/20 hover:text-white"
+                : "border-line bg-white text-ink/70 hover:border-ink/25 hover:text-ink shadow-sm"
+            }`}
+            title="Global Search (⌘K)"
+          >
+            <Search size={13} />
+            <span>Search</span>
+            <kbd className="rounded bg-black/10 px-1 py-0.5 font-mono text-[9px] opacity-60">⌘K</kbd>
+          </button>
+
+          {/* RAG Vault trigger */}
+          <button
+            type="button"
+            onClick={openVault}
+            className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition ${
+              inverse ? "text-white/75 hover:text-white" : "text-ink/65 hover:text-ink"
+            }`}
+            title="Field Vault & Documents"
+          >
+            <FolderLock size={13} />
+            <span>Vault</span>
+          </button>
+
+          {/* Travel AI Chat trigger */}
+          <button
+            type="button"
+            onClick={openChat}
+            className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition ${
+              inverse
+                ? "border-saffron-light/30 bg-saffron/20 text-saffron-light hover:bg-saffron/30"
+                : "border-saffron/30 bg-saffron/10 text-saffron hover:bg-saffron/20"
+            }`}
+          >
+            <Sparkles size={13} />
+            <span>AI Copilot</span>
+          </button>
+
+          {/* Plan trip button */}
+          <Link href="/planner" className="inline-flex items-center gap-1.5 rounded-full bg-saffron px-3.5 py-2 text-[12px] font-semibold text-white shadow-[0_8px_20px_rgba(197,101,58,0.18)] transition hover:-translate-y-0.5 hover:bg-[#b95a36]">
+            Plan trip <ArrowUpRight size={13} />
+          </Link>
+
+          {/* Auth Button */}
+          {isAuthenticated && user ? (
+            <div className="flex items-center gap-2 pl-1">
+              <div 
+                className="flex items-center gap-1.5 rounded-full border border-line bg-white/80 px-2.5 py-1 text-xs text-ink"
+                title={`Signed in as ${user.email}`}
+              >
+                <span className="grid size-5 place-items-center rounded-full bg-olive text-[10px] font-bold text-white">
+                  {(user.fullName || user.email)[0].toUpperCase()}
+                </span>
+                <span className="max-w-[80px] truncate text-[11px] font-medium">
+                  {user.fullName?.split(" ")[0] || "User"}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => logout()}
+                className="rounded-full p-1.5 text-ink/40 hover:bg-red-50 hover:text-red-600 transition"
+                title="Sign Out"
+              >
+                <LogOut size={14} />
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={openAuth}
+              className={`rounded-full border px-3.5 py-1.5 text-xs font-semibold transition ${
+                inverse
+                  ? "border-white/30 text-white hover:bg-white/10"
+                  : "border-line bg-white text-ink hover:border-ink/40"
+              }`}
+            >
+              Sign In
+            </button>
+          )}
         </div>
-        <button type="button" className="rounded-full border border-current/20 p-2 lg:hidden" onClick={() => setMobileOpen(!mobileOpen)} aria-label={mobileOpen ? "Close navigation" : "Open navigation"} aria-expanded={mobileOpen} aria-controls="mobile-navigation">{mobileOpen ? <X size={18} /> : <Menu size={18} />}</button>
+
+        {/* Mobile menu trigger */}
+        <div className="flex items-center gap-2 lg:hidden">
+          <button
+            type="button"
+            onClick={openSearch}
+            className="rounded-full border border-current/20 p-2"
+            aria-label="Search"
+          >
+            <Search size={16} />
+          </button>
+          <button
+            type="button"
+            className="rounded-full border border-current/20 p-2"
+            onClick={() => setMobileOpen(!mobileOpen)}
+            aria-label={mobileOpen ? "Close navigation" : "Open navigation"}
+            aria-expanded={mobileOpen}
+          >
+            {mobileOpen ? <X size={18} /> : <Menu size={18} />}
+          </button>
+        </div>
       </div>
-      {mobileOpen && <div id="mobile-navigation" className="border-t border-line bg-paper px-5 pb-5 pt-3 text-ink lg:hidden"><nav className="flex flex-col" aria-label="Mobile navigation">{nav.map((item) => <Link key={item.href} href={item.href} onClick={() => setMobileOpen(false)} className="border-b border-line py-4 text-sm font-medium">{item.label}</Link>)}<Link href="/contribute" onClick={() => setMobileOpen(false)} className="py-4 text-sm font-medium">Contribute</Link><Link href="/planner" onClick={() => setMobileOpen(false)} className="mt-2 inline-flex items-center justify-center gap-2 rounded-full bg-saffron px-4 py-3 text-sm font-semibold text-white">Plan my trip <ArrowUpRight size={15} /></Link></nav></div>}
+
+      {mobileOpen && (
+        <div id="mobile-navigation" className="border-t border-line bg-paper px-5 pb-5 pt-3 text-ink lg:hidden">
+          <nav className="flex flex-col" aria-label="Mobile navigation">
+            {nav.map((item) => (
+              <Link key={item.href} href={item.href} onClick={() => setMobileOpen(false)} className="border-b border-line py-3 text-sm font-medium">
+                {item.label}
+              </Link>
+            ))}
+            <Link href="/contribute" onClick={() => setMobileOpen(false)} className="border-b border-line py-3 text-sm font-medium">
+              Contribute
+            </Link>
+            <div className="flex gap-2 py-3">
+              <button
+                type="button"
+                onClick={() => { setMobileOpen(false); openChat(); }}
+                className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-full border border-saffron/30 bg-saffron/10 py-2.5 text-xs font-semibold text-saffron"
+              >
+                <Sparkles size={14} /> AI Copilot
+              </button>
+              <button
+                type="button"
+                onClick={() => { setMobileOpen(false); openVault(); }}
+                className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-full border border-line bg-white py-2.5 text-xs font-semibold text-ink"
+              >
+                <FolderLock size={14} /> Field Vault
+              </button>
+            </div>
+            {isAuthenticated ? (
+              <div className="flex items-center justify-between border-t border-line pt-3">
+                <span className="text-xs text-ink/70">Signed in as <strong>{user?.email}</strong></span>
+                <button
+                  type="button"
+                  onClick={() => { logout(); setMobileOpen(false); }}
+                  className="text-xs font-semibold text-red-600"
+                >
+                  Sign Out
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => { setMobileOpen(false); openAuth(); }}
+                className="mt-2 w-full rounded-full border border-line bg-white py-2.5 text-xs font-semibold text-ink"
+              >
+                Sign In
+              </button>
+            )}
+            <Link href="/planner" onClick={() => setMobileOpen(false)} className="mt-2 inline-flex items-center justify-center gap-2 rounded-full bg-saffron px-4 py-3 text-sm font-semibold text-white">
+              Plan my trip <ArrowUpRight size={15} />
+            </Link>
+          </nav>
+        </div>
+      )}
     </header>
   );
 }

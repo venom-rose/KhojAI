@@ -1,0 +1,100 @@
+version: "3.8"
+
+services:
+  # ============================================================================
+  # 1. PostgreSQL Relational Database (v16)
+  # ============================================================================
+  db:
+    image: postgres:16-alpine
+    container_name: khojai-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-khojai}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-khojai}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - khojai-network
+
+  # ============================================================================
+  # 2. FastAPI Backend API & RAG Engine
+  # ============================================================================
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: khojai-backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      APP_NAME: KHOJAI
+      APP_ENV: production
+      DEBUG: "False"
+      PORT: 8000
+      HOST: 0.0.0.0
+      API_V1_PREFIX: /api/v1
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-khojai}
+      JWT_SECRET: ${JWT_SECRET:-please_set_a_secure_jwt_secret_key_with_at_least_32_characters}
+      JWT_ALGORITHM: HS256
+      ACCESS_TOKEN_EXPIRE_MINUTES: 30
+      REFRESH_TOKEN_EXPIRE_DAYS: 7
+      COOKIE_NAME: app_session_id
+      COOKIE_SECURE: "False"
+      COOKIE_SAME_SITE: lax
+      AI_PROVIDER: ${AI_PROVIDER:-local}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-local}
+      MEDIA_DIR: /app/media
+      MAX_UPLOAD_SIZE_MB: 20
+      CORS_ORIGINS: http://localhost,http://localhost:3000,http://127.0.0.1:3000
+    volumes:
+      - media-data:/app/media
+    ports:
+      - "8000:8000"
+    command: >
+      sh -c "alembic upgrade head && python -m uvicorn backend.app.main:app --host 0.0.0.0 --port 8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    networks:
+      - khojai-network
+
+  # ============================================================================
+  # 3. Vite + React 19 Frontend Web Interface
+  # ============================================================================
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: khojai-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "3000:80"
+    networks:
+      - khojai-network
+
+volumes:
+  pgdata:
+    driver: local
+  media-data:
+    driver: local
+
+networks:
+  khojai-network:
+    driver: bridge

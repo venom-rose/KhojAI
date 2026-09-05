@@ -1,8 +1,9 @@
-import { useMemo, useState } from "react";
-import { Filter, LayoutGrid, Map, Search, SlidersHorizontal, X } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Filter, LayoutGrid, Map, RefreshCw, Search, SlidersHorizontal, X } from "lucide-react";
 import { Link } from "wouter";
 import { DestinationCard, MapMock, SectionKicker, Shell } from "@/components/site";
-import { destinations, regionOptions } from "@/data/destinations";
+import { destinations as staticDestinations, Destination, regionOptions } from "@/data/destinations";
+import { searchService } from "@/services/search";
 
 export default function Discover() {
   const [query, setQuery] = useState("");
@@ -11,20 +12,77 @@ export default function Discover() {
   const [mapOpen, setMapOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [filters, setFilters] = useState({ state: "All states", budget: "Any budget", style: "Any style", season: "Any season", experience: "Any experience" });
-  const results = useMemo(() => {
-    const searched = destinations.filter((destination) => {
-      const searchable = `${destination.name} ${destination.state} ${destination.region} ${destination.category} ${destination.tags.join(" ")}`.toLowerCase();
-      const matchesState = filters.state === "All states" || destination.state === filters.state;
-      const matchesBudget = filters.budget === "Any budget" || destination.budget === filters.budget;
-      const matchesStyle = filters.style === "Any style" || destination.tags.some((tag) => tag.toLowerCase().includes(filters.style.replace(" travel", "").toLowerCase())) || destination.category.toLowerCase().includes(filters.style.replace(" travel", "").toLowerCase());
-      const matchesSeason = filters.season === "Any season" || destination.bestSeason === filters.season;
-      const matchesExperience = filters.experience === "Any experience" || destination.category.toLowerCase().includes(filters.experience.toLowerCase()) || destination.tags.some((tag) => tag.toLowerCase().includes(filters.experience.toLowerCase()));
-      return searchable.includes(query.toLowerCase()) && (region === "All regions" || destination.region === region) && matchesState && matchesBudget && matchesStyle && matchesSeason && matchesExperience;
-    });
-    if (sort === "Most Trusted") return [...searched].sort((a, b) => b.trustScore - a.trustScore);
-    if (sort === "Budget Friendly") return [...searched].sort((a, b) => a.budget.length - b.budget.length);
-    if (sort === "Offbeat") return [...searched].sort((a, b) => a.trustScore - b.trustScore);
-    return searched;
+  const [results, setResults] = useState<Destination[]>(staticDestinations);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    const fetchResults = async () => {
+      setLoading(true);
+      try {
+        const data = await searchService.searchDestinations({
+          q: query,
+          region,
+          state: filters.state,
+          budget: filters.budget,
+          style: filters.style,
+          season: filters.season,
+          experience: filters.experience,
+          sort
+        });
+        if (active) {
+          const mapped: Destination[] = data.items.map((item) => ({
+            slug: item.slug,
+            name: item.name,
+            state: item.state,
+            region: item.region,
+            category: item.category,
+            bestSeason: item.best_season,
+            budget: item.budget,
+            trustScore: item.trust_score,
+            description: item.description,
+            image: item.image_url,
+            accent: item.accent_color || "#c5653a",
+            demoNote: "Verified community intelligence from KhojAI backend",
+            tags: item.tags,
+            coordinates: { x: "50%", y: "50%" },
+            trustMetrics: {
+              sourceQuality: Math.round(item.trust_score * 0.95),
+              recency: 90,
+              communityAgreement: Math.round(item.trust_score * 0.9),
+              completeness: 85,
+            },
+          }));
+          setResults(mapped);
+        }
+      } catch (err) {
+        console.warn("Backend search fallback to static filter:", err);
+        // Fallback local logic
+        if (active) {
+          const searched = staticDestinations.filter((destination) => {
+            const searchable = `${destination.name} ${destination.state} ${destination.region} ${destination.category} ${destination.tags.join(" ")}`.toLowerCase();
+            const matchesState = filters.state === "All states" || destination.state === filters.state;
+            const matchesBudget = filters.budget === "Any budget" || destination.budget === filters.budget;
+            const matchesStyle = filters.style === "Any style" || destination.tags.some((tag) => tag.toLowerCase().includes(filters.style.replace(" travel", "").toLowerCase())) || destination.category.toLowerCase().includes(filters.style.replace(" travel", "").toLowerCase());
+            const matchesSeason = filters.season === "Any season" || destination.bestSeason === filters.season;
+            const matchesExperience = filters.experience === "Any experience" || destination.category.toLowerCase().includes(filters.experience.toLowerCase()) || destination.tags.some((tag) => tag.toLowerCase().includes(filters.experience.toLowerCase()));
+            return searchable.includes(query.toLowerCase()) && (region === "All regions" || destination.region === region) && matchesState && matchesBudget && matchesStyle && matchesSeason && matchesExperience;
+          });
+          if (sort === "Most Trusted") searched.sort((a, b) => b.trustScore - a.trustScore);
+          else if (sort === "Budget Friendly") searched.sort((a, b) => a.budget.length - b.budget.length);
+          else if (sort === "Offbeat") searched.sort((a, b) => a.trustScore - b.trustScore);
+          setResults(searched);
+        }
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+
+    const timer = setTimeout(fetchResults, 200);
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
   }, [filters, query, region, sort]);
   return <Shell><main className="pt-[76px]"><section className="border-b border-line bg-paper py-16 md:py-24"><div className="container"><div className="max-w-3xl"><SectionKicker>Discover · Field guide</SectionKicker><h1 className="font-display text-6xl leading-[.96] tracking-[-.07em] md:text-8xl">India beyond<br /><em className="text-saffron">the obvious.</em></h1><p className="mt-6 max-w-xl text-base leading-7 text-ink/60 md:text-lg">Explore places shaped by local stories, community experiences and destination intelligence.</p></div><div className="mt-12 flex flex-col gap-3 lg:flex-row"><label className="relative block flex-1"><Search className="absolute left-4 top-1/2 -translate-y-1/2 text-ink/35" size={18} /><input aria-label="Search destinations, regions or experiences" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search destinations or experiences…" className="h-14 w-full rounded-2xl border border-line bg-white pl-12 pr-4 text-sm outline-none transition placeholder:text-ink/35 focus:border-saffron" /></label><div className="flex gap-3"><button type="button" onClick={() => setFiltersOpen(!filtersOpen)} className="inline-flex h-14 items-center gap-2 rounded-2xl border border-line bg-white px-4 text-sm font-semibold text-ink lg:hidden" aria-expanded={filtersOpen}><SlidersHorizontal size={16} /> Filters</button><label className="sr-only" htmlFor="sort-destinations">Sort destinations</label><select id="sort-destinations" aria-label="Sort destinations" value={sort} onChange={(event) => setSort(event.target.value)} className="h-14 rounded-2xl border border-line bg-white px-4 text-sm font-semibold text-ink outline-none focus:border-saffron"><option>Recommended</option><option>Most Trusted</option><option>Recently Updated</option><option>Budget Friendly</option><option>Offbeat</option></select><button type="button" onClick={() => setMapOpen(!mapOpen)} aria-pressed={mapOpen} aria-label={mapOpen ? "Hide map view" : "Show map view"} className={`inline-flex h-14 items-center gap-2 rounded-2xl border px-4 text-sm font-semibold transition ${mapOpen ? "border-ink bg-ink text-white" : "border-line bg-white text-ink"}`}><Map size={16} /> <span className="hidden sm:inline">{mapOpen ? "Hide map" : "Map view"}</span></button></div></div></div></section>
       <section className="container py-10 md:py-14"><div className="grid gap-10 lg:grid-cols-[220px_1fr]"><aside className={`${filtersOpen ? "block" : "hidden"} lg:block`}><div className="sticky top-24 rounded-[24px] border border-line bg-white p-5"><div className="mb-5 flex items-center justify-between"><p className="font-mono text-[10px] font-semibold uppercase tracking-[.2em] text-ink/45">Refine by</p><button type="button" className="text-ink/35 lg:hidden" onClick={() => setFiltersOpen(false)} aria-label="Close filters"><X size={16} /></button></div><div className="space-y-6"><div><label className="mb-2 block text-xs font-semibold text-ink/70" htmlFor="filter-region">Region</label><select id="filter-region" value={region} onChange={(event) => setRegion(event.target.value)} className="h-10 w-full rounded-xl border border-line bg-paper px-3 text-xs text-ink/65 outline-none focus:border-saffron">{regionOptions.map((option) => <option key={option}>{option}</option>)}</select></div><div><label className="mb-2 block text-xs font-semibold text-ink/70" htmlFor="filter-state">State</label><select id="filter-state" value={filters.state} onChange={(event) => setFilters({ ...filters, state: event.target.value })} className="h-10 w-full rounded-xl border border-line bg-paper px-3 text-xs text-ink/65 outline-none focus:border-saffron">{["All states", "Arunachal Pradesh", "Assam", "Himachal Pradesh", "Uttarakhand", "Andhra Pradesh", "Madhya Pradesh", "Nagaland", "Jammu & Kashmir"].map((option) => <option key={option}>{option}</option>)}</select></div><div><label className="mb-2 block text-xs font-semibold text-ink/70" htmlFor="filter-budget">Budget</label><select id="filter-budget" value={filters.budget} onChange={(event) => setFilters({ ...filters, budget: event.target.value })} className="h-10 w-full rounded-xl border border-line bg-paper px-3 text-xs text-ink/65 outline-none focus:border-saffron">{["Any budget", "₹", "₹₹", "₹₹₹"].map((option) => <option key={option}>{option}</option>)}</select></div><div><label className="mb-2 block text-xs font-semibold text-ink/70" htmlFor="filter-style">Travel style</label><select id="filter-style" value={filters.style} onChange={(event) => setFilters({ ...filters, style: event.target.value })} className="h-10 w-full rounded-xl border border-line bg-paper px-3 text-xs text-ink/65 outline-none focus:border-saffron">{["Any style", "Slow travel", "Outdoors", "Culture-led", "Road trip"].map((option) => <option key={option}>{option}</option>)}</select></div><div><label className="mb-2 block text-xs font-semibold text-ink/70" htmlFor="filter-season">Best season</label><select id="filter-season" value={filters.season} onChange={(event) => setFilters({ ...filters, season: event.target.value })} className="h-10 w-full rounded-xl border border-line bg-paper px-3 text-xs text-ink/65 outline-none focus:border-saffron">{["Any season", "Oct – Feb", "Mar – Jun", "Jun – Sep", "Oct – Nov", "Nov – Feb"].map((option) => <option key={option}>{option}</option>)}</select></div><div><label className="mb-2 block text-xs font-semibold text-ink/70" htmlFor="filter-experience">Experience</label><select id="filter-experience" value={filters.experience} onChange={(event) => setFilters({ ...filters, experience: event.target.value })} className="h-10 w-full rounded-xl border border-line bg-paper px-3 text-xs text-ink/65 outline-none focus:border-saffron">{["Any experience", "Nature", "Culture", "Food", "Outdoors", "Heritage"].map((option) => <option key={option}>{option}</option>)}</select></div></div><button type="button" onClick={() => { setRegion("All regions"); setQuery(""); setFilters({ state: "All states", budget: "Any budget", style: "Any style", season: "Any season", experience: "Any experience" }); }} className="mt-7 text-xs font-semibold text-saffron">Clear all filters</button></div></aside><div><div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-display text-2xl tracking-[-.04em]">{results.length} places to start with</p><p className="mt-1 text-xs text-ink/45">Demo destinations · trust scores are illustrative</p></div><div className="flex items-center gap-2 text-xs text-ink/45"><LayoutGrid size={15} /> Showing a considered shortlist</div></div>{mapOpen && <div className="mb-7"><MapMock /></div>}<div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">{results.map((destination) => <DestinationCard key={destination.slug} destination={destination} />)}</div>{results.length === 0 && <div className="rounded-[24px] border border-dashed border-line bg-white p-14 text-center"><Filter className="mx-auto text-ink/25" size={28} /><h3 className="mt-4 font-display text-2xl">No exact match yet.</h3><p className="mt-2 text-sm text-ink/55">Try a region, a state or a feeling like “slow travel”.</p><button type="button" onClick={() => { setQuery(""); setRegion("All regions"); setFilters({ state: "All states", budget: "Any budget", style: "Any style", season: "Any season", experience: "Any experience" }); }} className="mt-5 rounded-full bg-ink px-4 py-2.5 text-xs font-semibold text-white">Reset search</button></div>}</div></div></section><section className="bg-mist py-14"><div className="container flex flex-col justify-between gap-5 md:flex-row md:items-center"><div><p className="font-mono text-[10px] uppercase tracking-[.2em] text-olive">A note on the map</p><p className="mt-2 max-w-2xl text-sm leading-6 text-ink/60">The map is a visual placeholder in this frontend MVP. Real route data, accessibility notes and live conditions will connect through authorized services later.</p></div><Link href="/about" className="text-sm font-semibold text-ink underline decoration-saffron underline-offset-4">How the signal works</Link></div></section></main></Shell>;
