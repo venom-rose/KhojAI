@@ -77,14 +77,28 @@ class Settings(BaseSettings):
     MAX_UPLOAD_SIZE_MB: int = 5
 
     # Travel Provider APIs
-    AMADEUS_CLIENT_ID: str = ""
-    AMADEUS_CLIENT_SECRET: str = ""
-    AMADEUS_BASE_URL: str = "https://test.api.amadeus.com"
+    # AirLabs (airports, flight routes) — https://airlabs.co
+    AIRLABS_API_KEY: str = ""
+    AIRLABS_BASE_URL: str = "https://airlabs.co/api/v9"
+
+    # OpenTripMap (attractions, activities, POIs) — https://opentripmap.io
+    OPENTRIPMAP_API_KEY: str = ""
+    OPENTRIPMAP_BASE_URL: str = "https://api.opentripmap.com/0.1/en/places"
+
+    # Google Places (hotels, place search, autocomplete)
     GOOGLE_MAPS_API_KEY: str = ""
+
+    # Shared travel provider settings
     TRAVEL_CACHE_TTL_SECONDS: int = 3600
     TRAVEL_API_TIMEOUT_SECONDS: float = 10.0
     TRAVEL_API_MAX_RETRIES: int = 2
-    TRAVEL_DEFAULT_PROVIDER: str = "amadeus"
+    TRAVEL_DEFAULT_PROVIDER: str = "airlabs"
+
+    # Deprecated — Amadeus Self-Service was decommissioned July 17, 2026.
+    # These fields are retained so old .env files don't cause startup errors.
+    AMADEUS_CLIENT_ID: str = ""
+    AMADEUS_CLIENT_SECRET: str = ""
+    AMADEUS_BASE_URL: str = "https://api.amadeus.com"
 
     # CORS
     CORS_ORIGINS: str = "http://localhost:3000,http://127.0.0.1:3000"

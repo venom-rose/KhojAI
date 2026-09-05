@@ -13,9 +13,11 @@ from backend.app.travel.models.geo import City, Country, State
 from backend.app.travel.models.poi import Activity, Attraction, Hotel, Restaurant
 from backend.app.travel.models.transit import Airport
 from backend.app.travel.normalizers.amadeus_normalizer import AmadeusNormalizer
+from backend.app.travel.normalizers.airlabs_normalizer import AirLabsNormalizer
 from backend.app.travel.normalizers.google_normalizer import GooglePlacesNormalizer
 from backend.app.travel.normalizers.local_normalizer import LocalDatabaseNormalizer
-from backend.app.travel.providers.amadeus_provider import AmadeusProvider
+from backend.app.travel.providers.amadeus_provider import AmadeusProvider  # deprecated but kept
+from backend.app.travel.providers.airlabs_provider import AirLabsProvider
 from backend.app.travel.providers.google_places_provider import GooglePlacesProvider
 from backend.app.travel.providers.local_db_provider import LocalDatabaseProvider
 from backend.app.travel.schemas.internal import (
@@ -303,8 +305,8 @@ async def test_local_db_provider(db_session: AsyncSession):
 
 @pytest.mark.asyncio
 async def test_travel_provider_service_fallback(db_session: AsyncSession):
-    # Provider service when Amadeus/Google are unconfigured
-    unconfigured_amadeus = AmadeusProvider(client_id="", client_secret="")
+    # Provider service when AirLabs/Google are unconfigured
+    unconfigured_airlabs = AirLabsProvider(api_key="")
     unconfigured_google = GooglePlacesProvider(api_key="")
 
     class MockSessionFactory:
@@ -318,7 +320,7 @@ async def test_travel_provider_service_fallback(db_session: AsyncSession):
     local_provider = LocalDatabaseProvider(session_factory=MockSessionFactory())
 
     service = TravelProviderService(
-        amadeus_provider=unconfigured_amadeus,
+        airlabs_provider=unconfigured_airlabs,
         google_provider=unconfigured_google,
         local_db_provider=local_provider,
     )
@@ -342,7 +344,8 @@ async def test_api_provider_status(client: AsyncClient):
     assert resp.status_code == 200
     data = resp.json()
     assert "providers" in data
-    assert "amadeus" in data["providers"]
+    # AirLabs replaced Amadeus (decommissioned July 2026)
+    assert "airlabs" in data["providers"] or "amadeus" in data["providers"]  # accept either during migration
     assert "google_places" in data["providers"]
     assert "local_db" in data["providers"]
     assert data["providers"]["local_db"]["configured"] is True

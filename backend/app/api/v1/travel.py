@@ -209,16 +209,21 @@ async def proxy_place_photo(photo_name: str):
 async def get_provider_status():
     return {
         "providers": {
-            "amadeus": {
-                "name": "Amadeus Travel Innovation API",
-                "configured": travel_service.amadeus.is_configured,
-                "base_url": travel_service.amadeus.base_url,
-                "capabilities": ["flights", "hotels", "activities", "airports"],
+            "airlabs": {
+                "name": "AirLabs Aviation Data API",
+                "configured": travel_service.airlabs.is_configured,
+                "capabilities": ["airports", "flight_routes", "flight_schedules"],
+                "note": "Replaces Amadeus Self-Service (decommissioned July 17, 2026)",
+            },
+            "opentripmap": {
+                "name": "OpenTripMap POI & Attractions API",
+                "configured": travel_service.opentripmap.is_configured,
+                "capabilities": ["activities", "attractions", "places_search", "autocomplete", "poi_details"],
             },
             "google_places": {
                 "name": "Google Places API (New)",
                 "configured": travel_service.google.is_configured,
-                "capabilities": ["places_search", "autocomplete", "details", "photos", "reviews"],
+                "capabilities": ["places_search", "autocomplete", "details", "photos", "reviews", "hotels"],
             },
             "local_db": {
                 "name": "Local Database Provider (PostgreSQL / SQLite)",
@@ -229,7 +234,7 @@ async def get_provider_status():
         "resilience": {
             "rate_limit_handling": "enabled",
             "provider_failure_fallback": "local_db",
-            "timeout_seconds": travel_service.amadeus.timeout,
-            "max_retries": travel_service.amadeus.max_retries,
+            "timeout_seconds": travel_service.airlabs.timeout,
+            "max_retries": travel_service.airlabs.max_retries,
         },
     }
