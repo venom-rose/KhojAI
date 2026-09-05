@@ -199,3 +199,49 @@ export const trustSignals = [
 export type PlannerPreferences = { budget: string; days: string; style: string; interests: string[]; group: string };
 
 export const defaultPreferences: PlannerPreferences = { budget: "₹15,000", days: "5 days", style: "Slow travel", interests: ["Nature", "Culture"], group: "2 people" };
+
+export type PlannerRecommendation = {
+  destination: Destination;
+  matchScore: number;
+  budgetFit: number;
+  styleFit: number;
+  experienceFit: number;
+  seasonFit: number;
+  reasons: string[];
+};
+
+const budgetLevel = (budget: string) => budget.includes("25") ? 3 : budget.includes("8") ? 1 : 2;
+
+const destinationBudgetLevel = (budget: string) => budget.length;
+
+const fitScore = (base: number, hits: number, boost = 8) => Math.min(98, base + hits * boost);
+
+export const buildPlannerRecommendations = (preferences: PlannerPreferences): PlannerRecommendation[] => {
+  const styleWords: Record<string, string[]> = {
+    "Slow travel": ["slow", "river", "local", "community", "culture"],
+    Outdoors: ["forest", "trek", "trail", "mountain", "valley", "river"],
+    "Culture-led": ["culture", "craft", "heritage", "architecture", "local"],
+    "Road trip": ["road", "sunrise", "gorge", "landscape"],
+  };
+  const interestWords: Record<string, string[]> = { Nature: ["nature", "forest", "valley", "river", "mountain", "meadows", "landscape"], Culture: ["culture", "local", "craft", "heritage", "architecture", "satra"], Food: ["food", "local"], Outdoors: ["outdoors", "trek", "trail", "birding", "cycling"], Heritage: ["heritage", "ruins", "architecture", "craft"], "Slow travel": ["slow", "river", "island", "community"] };
+  const targetBudget = budgetLevel(preferences.budget);
+  const durationLabel = preferences.days === "10+ days" ? "extended" : preferences.days.replace(" days", "-day").replace(" day", "-day");
+  return destinations.map((destination) => {
+    const searchable = `${destination.category} ${destination.tags.join(" ")} ${destination.description}`.toLowerCase();
+    const styleHits = (styleWords[preferences.style] ?? []).filter((word) => searchable.includes(word)).length;
+    const experienceHits = preferences.interests.flatMap((interest) => interestWords[interest] ?? []).filter((word, index, words) => words.indexOf(word) === index && searchable.includes(word)).length;
+    const budgetFit = Math.max(76, 100 - Math.abs(targetBudget - destinationBudgetLevel(destination.budget)) * 10);
+    const styleFit = fitScore(72, styleHits, 5);
+    const experienceFit = fitScore(72, experienceHits, 3);
+    const seasonFit = Math.min(97, destination.trustMetrics.recency + 5);
+    const matchScore = Math.round(styleFit * 0.24 + experienceFit * 0.23 + budgetFit * 0.18 + seasonFit * 0.15 + destination.trustScore * 0.2);
+    const reasons = [
+      experienceHits > 0 ? `Fits your ${preferences.interests[0]?.toLowerCase() ?? "experience"} preference` : "Adds a different texture to your brief",
+      styleFit >= 85 ? `Matches your ${preferences.style.toLowerCase()} style` : "Offers a flexible pace for your trip",
+      budgetFit >= 90 ? "Within your selected budget" : "Keeps the budget signal visible",
+      destination.trustScore >= 88 ? "Strong destination confidence" : "Useful context, with a little more to verify",
+      `Good fit for your ${durationLabel} trip`,
+    ];
+    return { destination, matchScore, budgetFit, styleFit, experienceFit, seasonFit, reasons };
+  }).sort((a, b) => b.matchScore - a.matchScore).slice(0, 3);
+};
