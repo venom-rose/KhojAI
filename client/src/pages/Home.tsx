@@ -1,25 +1,48 @@
-import { Button } from "@/components/ui/button";
-import { Loader2 } from "lucide-react";
-import { Streamdown } from 'streamdown';
+import { ArrowDown, ArrowUpRight, Check, ChevronRight, CircleDot, Compass, MapPin, MoveUpRight, Play, Sparkles, Users, Waves } from "lucide-react";
+import { Link } from "wouter";
+import { ArrowLink, DestinationCard, Footer, SectionKicker, SiteHeader, TrustScore } from "@/components/site";
+import { destinations, featuredDestinations, trustSignals } from "@/data/destinations";
 
-/**
- * All content in this page are only for example, replace with your own feature implementation
- * When building pages, remember your instructions in Frontend Best Practices, Design Guide and Common Pitfalls
- */
 export default function Home() {
-  // If theme is switchable in App.tsx, we can implement theme toggling like this:
-  // const { theme, toggleTheme } = useTheme();
+  return <div className="min-h-screen bg-paper text-ink">
+    <SiteHeader dark />
+    <main>
+      <section className="grain relative flex min-h-[720px] items-end overflow-hidden bg-ink text-white md:min-h-[820px]">
+        <img src="/manus-storage/hidden-india-hero_13593474.jpg" alt="Misty Himalayan trail at sunrise" className="absolute inset-0 h-full w-full object-cover object-center opacity-80" />
+        <div className="absolute inset-0 bg-gradient-to-r from-black/75 via-black/20 to-black/10" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-black/25" />
+        <div className="container relative z-10 pb-14 pt-36 md:pb-20">
+          <div className="max-w-4xl animate-rise">
+            <div className="mb-6 flex items-center gap-3 font-mono text-[10px] uppercase tracking-[0.26em] text-white/65"><span className="size-2 rounded-full bg-saffron-light" /> Destination intelligence for the curious</div>
+            <h1 className="max-w-4xl font-display text-[clamp(3.5rem,8vw,7.7rem)] font-medium leading-[0.93] tracking-[-0.07em] text-balance">India has places<br /><em className="text-saffron-light">you haven’t discovered yet.</em></h1>
+            <p className="mt-7 max-w-lg text-base leading-7 text-white/75 md:text-lg">Discover lesser-known destinations, trusted local insights and AI-crafted journeys built around the way you want to travel.</p>
+            <div className="mt-9 flex flex-col gap-3 sm:flex-row"><Link href="/discover" className="inline-flex items-center justify-center gap-3 rounded-full bg-saffron px-6 py-3.5 text-sm font-semibold text-white shadow-[0_15px_35px_rgba(197,101,58,.3)] transition hover:-translate-y-0.5 hover:bg-[#b95a36]">Explore Hidden India <ArrowUpRight size={16} /></Link><Link href="/planner" className="inline-flex items-center justify-center gap-3 rounded-full border border-white/30 bg-white/10 px-6 py-3.5 text-sm font-semibold text-white backdrop-blur-md transition hover:-translate-y-0.5 hover:bg-white/20">Plan a trip with AI <Sparkles size={15} /></Link></div>
+          </div>
+          <div className="mt-20 grid max-w-4xl items-end gap-8 border-t border-white/20 pt-5 md:grid-cols-[1fr_auto]">
+            <div><div className="mb-3 flex items-center gap-2 text-xs text-white/65"><MapPin size={14} className="text-saffron-light" /> Where do you want to disappear to?</div><div className="flex flex-wrap gap-2">{["Himalayas", "Northeast", "Rajasthan", "Coastal India", "Central India"].map((item) => <Link href="/discover" key={item} className="rounded-full border border-white/25 px-3 py-2 text-xs text-white/75 transition hover:border-saffron-light hover:bg-white/10 hover:text-white">{item}</Link>)}</div></div>
+            <div className="hidden items-center gap-3 text-[11px] text-white/50 md:flex"><span className="grid size-8 place-items-center rounded-full border border-white/20"><ArrowDown size={14} /></span> Scroll to explore</div>
+          </div>
+        </div>
+      </section>
 
-  return (
-    <div className="min-h-screen flex flex-col">
-      <main>
-        {/* Example: lucide-react for icons */}
-        <Loader2 className="animate-spin" />
-        Example Page
-        {/* Example: Streamdown for markdown rendering */}
-        <Streamdown>Any **markdown** content</Streamdown>
-        <Button variant="default">Example Button</Button>
-      </main>
-    </div>
-  );
+      <section className="container py-20 md:py-32">
+        <div className="grid gap-10 md:grid-cols-[.8fr_1.2fr] md:items-end"><div><SectionKicker>01 · The premise</SectionKicker><h2 className="max-w-lg font-display text-5xl leading-[1] tracking-[-0.06em] md:text-6xl">Go beyond<br /><em className="text-saffron">the obvious.</em></h2></div><div className="max-w-xl pb-1"><p className="text-lg leading-8 text-ink/65">Most itineraries repeat the same well-worn highlights. We’re building a richer signal for the places that reward curiosity — shaped by local voices, recent experiences and context you can actually use.</p><div className="mt-6 flex items-center gap-4 text-xs font-semibold text-olive"><span className="h-px w-10 bg-olive" /> Less noise. More sense of place.</div></div></div>
+        <div className="mt-14 grid gap-5 md:grid-cols-4"><DestinationCard destination={featuredDestinations[0]} featured />{featuredDestinations.slice(1).map((destination) => <DestinationCard key={destination.slug} destination={destination} />)}</div>
+        <div className="mt-8 flex justify-end"><ArrowLink href="/discover">Browse all destinations</ArrowLink></div>
+      </section>
+
+      <section className="bg-ink py-20 text-white md:py-28">
+        <div className="container"><div className="grid gap-14 lg:grid-cols-[.9fr_1.1fr] lg:items-center"><div><SectionKicker light>02 · AI trip planner</SectionKicker><h2 className="max-w-xl font-display text-5xl leading-[1] tracking-[-0.06em] md:text-6xl">Tell us how you want to travel.<br /><em className="text-saffron-light">We’ll find where you should go.</em></h2><p className="mt-7 max-w-md text-base leading-7 text-white/55">Not a chatbot. A considered starting point for a journey that fits your pace, budget and curiosity.</p><Link href="/planner" className="mt-8 inline-flex items-center gap-2 rounded-full bg-white px-5 py-3 text-sm font-semibold text-ink transition hover:-translate-y-0.5 hover:bg-saffron-light">Build my journey <Sparkles size={15} /></Link></div>
+          <div className="relative rounded-[26px] border border-white/15 bg-white/[.07] p-5 shadow-[0_30px_80px_rgba(0,0,0,.25)] backdrop-blur-sm md:p-7"><div className="absolute -right-3 -top-3 grid size-12 rotate-12 place-items-center rounded-2xl bg-saffron text-white shadow-lg"><Sparkles size={20} /></div><div className="flex items-center justify-between border-b border-white/10 pb-5"><div><p className="font-mono text-[10px] uppercase tracking-[.2em] text-white/45">Your trip brief</p><p className="mt-1 text-sm text-white/80">A little more you, a little less template.</p></div><span className="rounded-full bg-white/10 px-2.5 py-1 text-[10px] text-saffron-light">01 / 04</span></div><div className="grid gap-4 pt-6 sm:grid-cols-2">{[["Budget", "₹15,000"], ["Time", "5 days"], ["Travel style", "Slow travel"], ["Interests", "Nature + Culture"], ["Group size", "2 people"], ["Mood", "Curious" ]].map(([label, value]) => <div key={label} className="rounded-2xl border border-white/10 bg-black/10 p-4"><p className="font-mono text-[9px] uppercase tracking-[.18em] text-white/40">{label}</p><p className="mt-2 text-sm font-medium text-white/90">{value}</p></div>)}</div><div className="mt-6 flex items-center justify-between border-t border-white/10 pt-5"><span className="flex items-center gap-2 text-xs text-white/50"><span className="size-1.5 rounded-full bg-saffron-light" /> Mock intelligence layer</span><ChevronRight size={16} className="text-white/50" /></div></div>
+        </div></div>
+      </section>
+
+      <section className="paper-grid py-20 md:py-32"><div className="container"><div className="grid gap-12 lg:grid-cols-[.8fr_1.2fr] lg:items-end"><div><SectionKicker>03 · Destination intelligence</SectionKicker><h2 className="max-w-xl font-display text-5xl leading-[1] tracking-[-0.06em] md:text-6xl">A clearer signal<br /><em className="text-olive">for where to go.</em></h2></div><p className="max-w-md text-base leading-7 text-ink/60">Travel decisions get better when they carry more than a star rating. Hidden India AI makes context visible — what’s changing, what’s accessible, and what locals keep mentioning.</p></div><div className="mt-14 grid gap-px overflow-hidden rounded-[24px] border border-line bg-line md:grid-cols-4">{trustSignals.map((signal, index) => <div key={signal.label} className="bg-paper p-6 md:min-h-[190px]"><span className="font-mono text-[10px] text-ink/35">0{index + 1}</span><div className="mt-12"><p className="font-display text-4xl tracking-[-0.05em] text-ink">{signal.value}</p><p className="mt-2 text-sm font-semibold">{signal.label}</p><p className="mt-1 text-xs text-ink/50">{signal.copy}</p></div></div>)}</div><div className="mt-8 grid gap-4 rounded-[24px] border border-line bg-white p-6 md:grid-cols-[1fr_auto_1fr_auto_1fr_auto_1fr] md:items-center md:p-8">{["Community insights", "AI processing", "Destination intelligence", "Personalized recommendations"].map((step, index) => <div key={step} className="contents"><div className="flex items-center gap-3"><span className="grid size-9 shrink-0 place-items-center rounded-full bg-olive/10 text-olive"><CircleDot size={15} /></span><span className="text-sm font-semibold">{step}</span></div>{index < 3 && <ChevronRight className="hidden text-ink/25 md:block" size={19} />}</div>)}</div></div></section>
+
+      <section className="container py-20 md:py-28"><div className="grid gap-8 rounded-[28px] bg-clay p-7 md:grid-cols-[1fr_auto] md:items-center md:p-12"><div><SectionKicker>04 · Community</SectionKicker><h2 className="max-w-xl font-display text-4xl leading-[1.05] tracking-[-0.05em] md:text-5xl">Know a place worth discovering?</h2><p className="mt-4 max-w-lg text-sm leading-6 text-ink/65">Your first-hand note could be the detail that helps someone travel with more care.</p></div><Link href="/contribute" className="inline-flex items-center justify-center gap-2 rounded-full bg-ink px-5 py-3.5 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-olive">Share a hidden gem <ArrowUpRight size={15} /></Link></div></section>
+
+      <section className="relative overflow-hidden bg-saffron py-24 text-white md:py-32"><div className="absolute -right-20 -top-40 size-[520px] rounded-full border border-white/15" /><div className="absolute -bottom-64 -left-28 size-[500px] rounded-full border border-white/10" /><div className="container relative"><div className="max-w-3xl"><p className="mb-6 font-mono text-[10px] uppercase tracking-[.24em] text-white/65">A different kind of travel product</p><h2 className="font-display text-6xl leading-[.95] tracking-[-.07em] md:text-8xl">Your next unforgettable trip<br /><em className="text-ink/75">might not be on the usual itinerary.</em></h2><Link href="/discover" className="mt-10 inline-flex items-center gap-2 rounded-full bg-ink px-6 py-3.5 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-white hover:text-ink">Discover Hidden India <ArrowUpRight size={16} /></Link></div></div></section>
+    </main>
+    <Footer />
+  </div>;
 }
