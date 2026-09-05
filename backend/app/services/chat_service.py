@@ -38,12 +38,20 @@ class ChatService:
 
     def __init__(self, provider: Optional[BaseAIProvider] = None):
         self._provider = provider
+        self._agent = None
 
     @property
     def provider(self) -> BaseAIProvider:
         if self._provider is None:
             self._provider = get_ai_provider()
         return self._provider
+
+    @property
+    def agent(self):
+        if self._agent is None:
+            from backend.app.ai.agent.travel_agent import TravelAgent
+            self._agent = TravelAgent(ai_provider=self.provider)
+        return self._agent
 
     async def get_conversation_or_404(
         self,
@@ -110,21 +118,25 @@ class ChatService:
             db.add(user_msg)
             await db.flush()
 
-            # Generate initial AI reply
-            messages_payload = [{"role": "user", "content": data.initial_message}]
-            ai_res = await self.provider.generate_response(
-                messages=messages_payload,
-                system_prompt=KHOJAI_SYSTEM_PROMPT,
+            # Generate initial AI reply using TravelAgent
+            agent_res = await self.agent.run(
+                user_message=data.initial_message,
+                user_id=str(user_id) if user_id else None,
                 model=data.model,
             )
 
             assistant_msg = ChatMessage(
                 conversation_id=conversation.id,
                 sender_type="assistant",
-                content=ai_res.content,
-                model_name=ai_res.model_name,
-                token_count=ai_res.token_count,
-                metadata_json=ai_res.metadata,
+                content=agent_res.content,
+                model_name=agent_res.model_name,
+                token_count=agent_res.metadata.get("token_count"),
+                metadata_json={
+                    **agent_res.metadata,
+                    "intent": agent_res.intent,
+                    "tools_used": agent_res.tools_used,
+                    "is_live": agent_res.is_live,
+                },
             )
             db.add(assistant_msg)
             conversation.updated_at = datetime.now(timezone.utc)
@@ -332,12 +344,12 @@ class ChatService:
             {"role": msg.sender_type, "content": msg.content}
             for msg in conversation.messages
         ]
-        context_messages.append({"role": "user", "content": data.content})
 
-        # 3. Call AI provider
-        ai_res = await self.provider.generate_response(
-            messages=context_messages,
-            system_prompt=KHOJAI_SYSTEM_PROMPT,
+        # 3. Call TravelAgent
+        agent_res = await self.agent.run(
+            user_message=data.content,
+            conversation_history=context_messages,
+            user_id=str(user_id) if user_id else None,
             model=data.model or conversation.model,
         )
 
@@ -345,10 +357,15 @@ class ChatService:
         assistant_msg = ChatMessage(
             conversation_id=conversation.id,
             sender_type="assistant",
-            content=ai_res.content,
-            model_name=ai_res.model_name,
-            token_count=ai_res.token_count,
-            metadata_json=ai_res.metadata,
+            content=agent_res.content,
+            model_name=agent_res.model_name,
+            token_count=agent_res.metadata.get("token_count"),
+            metadata_json={
+                **agent_res.metadata,
+                "intent": agent_res.intent,
+                "tools_used": agent_res.tools_used,
+                "is_live": agent_res.is_live,
+            },
         )
         db.add(assistant_msg)
 
@@ -400,11 +417,14 @@ class ChatService:
         model_used = data.model or conversation.model or "khojai-model"
 
         try:
-            async for token in self.provider.stream_response(
-                messages=context_messages,
-                system_prompt=KHOJAI_SYSTEM_PROMPT,
+            async for token, meta_event in self.agent.stream_run(
+                user_message=data.content,
+                conversation_history=context_messages,
+                user_id=str(user_id) if user_id else None,
                 model=model_used,
             ):
+                if meta_event:
+                    yield f"event: agent_activity\ndata: {json.dumps(meta_event)}\n\n"
                 accumulated_chunks.append(token)
                 chunk_payload = json.dumps({"token": token, "done": False})
                 yield f"event: token\ndata: {chunk_payload}\n\n"
@@ -490,20 +510,33 @@ class ChatService:
             for msg in conversation.messages[:target_idx]
         ]
 
-        # Generate new answer
+        # Find user query to regenerate for
+        last_user_query = "Please continue with the recommendation."
+        for msg in reversed(conversation.messages[:target_idx]):
+            if msg.sender_type == "user":
+                last_user_query = msg.content
+                break
+
+        # Generate new answer via TravelAgent
         used_model = model or conversation.model
-        ai_res = await self.provider.generate_response(
-            messages=context_messages,
-            system_prompt=KHOJAI_SYSTEM_PROMPT,
+        agent_res = await self.agent.run(
+            user_message=last_user_query,
+            conversation_history=context_messages,
+            user_id=str(user_id) if user_id else None,
             model=used_model,
         )
 
         # Update existing message or replace it
         target_msg = conversation.messages[target_idx]
-        target_msg.content = ai_res.content
-        target_msg.model_name = ai_res.model_name
-        target_msg.token_count = ai_res.token_count
-        target_msg.metadata_json = {**target_msg.metadata_json, **ai_res.metadata, "regenerated_at": datetime.now(timezone.utc).isoformat()}
+        target_msg.content = agent_res.content
+        target_msg.model_name = agent_res.model_name
+        target_msg.token_count = agent_res.metadata.get("token_count")
+        target_msg.metadata_json = {
+            **target_msg.metadata_json,
+            **agent_res.metadata,
+            "regenerated_at": datetime.now(timezone.utc).isoformat(),
+            "tools_used": agent_res.tools_used,
+        }
 
         conversation.updated_at = datetime.now(timezone.utc)
         await db.commit()

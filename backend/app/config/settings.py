@@ -76,6 +76,16 @@ class Settings(BaseSettings):
     MEDIA_DIR: str = "./media"
     MAX_UPLOAD_SIZE_MB: int = 5
 
+    # Travel Provider APIs
+    AMADEUS_CLIENT_ID: str = ""
+    AMADEUS_CLIENT_SECRET: str = ""
+    AMADEUS_BASE_URL: str = "https://test.api.amadeus.com"
+    GOOGLE_MAPS_API_KEY: str = ""
+    TRAVEL_CACHE_TTL_SECONDS: int = 3600
+    TRAVEL_API_TIMEOUT_SECONDS: float = 10.0
+    TRAVEL_API_MAX_RETRIES: int = 2
+    TRAVEL_DEFAULT_PROVIDER: str = "amadeus"
+
     # CORS
     CORS_ORIGINS: str = "http://localhost:3000,http://127.0.0.1:3000"
 

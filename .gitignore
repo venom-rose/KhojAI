@@ -75,10 +75,12 @@ jspm_packages/
 tmp/
 temp/
 
-# Database files
+# Database files (dev SQLite files — never commit these)
 *.db
 *.sqlite
 *.sqlite3
+khojai_dev.db
+backend/khojai_dev.db
 
 # Webdev artifacts
 .webdev/
@@ -91,6 +93,10 @@ __pycache__/
 *.py[cod]
 *$py.class
 .pytest_cache/
+
+# Vercel serverless build artifacts
+.vercel/
+api/__pycache__/
 
 # User uploads & ingested media files
 media/

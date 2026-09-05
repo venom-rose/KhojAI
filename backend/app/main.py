@@ -92,7 +92,7 @@ def create_application() -> FastAPI:
             },
         )
 
-    # Root health probe
+    # Root health probe (rich: includes env details)
     @app.get("/health", tags=["Health"])
     async def root_health():
         return {
@@ -100,6 +100,13 @@ def create_application() -> FastAPI:
             "app": settings.APP_NAME,
             "env": settings.APP_ENV,
         }
+
+    # Simple ping — used by Vercel load-balancer and deployment checks.
+    # Intentionally has NO database dependency so it always responds fast.
+    @app.get("/api/health", tags=["Health"], summary="Simple liveness ping")
+    async def api_health_ping():
+        """Lightweight liveness probe. Returns 200 OK with no external calls."""
+        return {"status": "ok", "service": "khojai-api"}
 
     return app
 

@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 from typing import Any
-from sqlalchemy import Boolean, DateTime, func
+from sqlalchemy import Boolean, DateTime, String, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, declared_attr, mapped_column
 from sqlalchemy.types import UUID
 
@@ -78,3 +78,28 @@ class SoftDeleteMixin:
     def restore(self) -> None:
         self.is_deleted = False
         self.deleted_at = None
+
+
+class ProvenanceMixin:
+    """Mixin for tracking external data origin, ID, and synchronization freshness."""
+
+    source: Mapped[str | None] = mapped_column(
+        String(50),
+        nullable=True,
+        index=True,
+        doc="Data origin/source (e.g. 'manual', 'osm', 'wikidata', 'sih_community')",
+    )
+
+    source_id: Mapped[str | None] = mapped_column(
+        String(100),
+        nullable=True,
+        index=True,
+        doc="External identifier from source system",
+    )
+
+    last_synced_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        doc="Timestamp when record was last synchronized with source (UTC)",
+    )
+

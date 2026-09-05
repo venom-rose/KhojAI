@@ -16,13 +16,14 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import UUID
 from backend.app.database.base import (
     Base,
+    ProvenanceMixin,
     SoftDeleteMixin,
     TimestampMixin,
     UUIDPrimaryKeyMixin,
 )
 
 
-class Destination(Base, UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin):
+class Destination(Base, UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin, ProvenanceMixin):
     """Destination entity representing a verified, lesser-known Indian location."""
 
     __tablename__ = "destinations"
@@ -42,11 +43,43 @@ class Destination(Base, UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin):
         doc="Official destination name",
     )
 
+    country_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("countries.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+        doc="Foreign key to sovereign Country",
+    )
+
+    state_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("states.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+        doc="Foreign key to State/UT",
+    )
+
+    city_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("cities.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+        doc="Foreign key to nearest City gateway",
+    )
+
+    category_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("destination_categories.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+        doc="Foreign key to primary DestinationCategory taxonomy",
+    )
+
     state: Mapped[str] = mapped_column(
         String(100),
         index=True,
         nullable=False,
-        doc="Indian state or union territory",
+        doc="Indian state or union territory text label",
     )
 
     region: Mapped[str] = mapped_column(
@@ -93,6 +126,26 @@ class Destination(Base, UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin):
         doc="Path or URL to primary landscape image",
     )
 
+    latitude: Mapped[Optional[float]] = mapped_column(
+        Float,
+        nullable=True,
+        doc="WGS84 latitude coordinate (e.g. 27.5950)",
+    )
+
+    longitude: Mapped[Optional[float]] = mapped_column(
+        Float,
+        nullable=True,
+        doc="WGS84 longitude coordinate (e.g. 93.8385)",
+    )
+
+    is_hidden_gem: Mapped[bool] = mapped_column(
+        Boolean,
+        default=True,
+        nullable=False,
+        index=True,
+        doc="Identifies lesser-known / offbeat locations",
+    )
+
     accent_color: Mapped[str] = mapped_column(
         String(20),
         default="#5d6b43",
@@ -137,14 +190,101 @@ class Destination(Base, UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin):
         doc="Flag indicating landing page featured status",
     )
 
-    # Database-level Constraints
+    # Database-level Constraints & Multi-column Indexes
     __table_args__ = (
         CheckConstraint("trust_score >= 0 AND trust_score <= 100", name="ck_destinations_trust_score"),
         CheckConstraint("length(budget) >= 1 AND length(budget) <= 5", name="ck_destinations_budget"),
         Index("idx_destinations_filter", "region", "budget", "state"),
+        Index("idx_destinations_name", "name"),
+        Index("idx_destinations_coordinates", "latitude", "longitude"),
+        Index("idx_destinations_geo_hierarchy", "country_id", "state_id", "city_id"),
+        Index("idx_destinations_provenance", "source", "source_id"),
     )
 
-    # Relationships
+    # Hierarchy Relationships
+    country: Mapped[Optional["Country"]] = relationship(
+        "Country",
+        back_populates="destinations",
+    )
+
+    state_rel: Mapped[Optional["State"]] = relationship(
+        "State",
+        back_populates="destinations",
+    )
+
+    city: Mapped[Optional["City"]] = relationship(
+        "City",
+        back_populates="destinations",
+    )
+
+    category_entity: Mapped[Optional["DestinationCategory"]] = relationship(
+        "DestinationCategory",
+        back_populates="destinations",
+    )
+
+    # Travel Child Relationships
+    seasons: Mapped[List["Season"]] = relationship(
+        "Season",
+        back_populates="destination",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
+    travel_tips: Mapped[List["TravelTip"]] = relationship(
+        "TravelTip",
+        back_populates="destination",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
+    attractions: Mapped[List["Attraction"]] = relationship(
+        "Attraction",
+        back_populates="destination",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
+    activities: Mapped[List["Activity"]] = relationship(
+        "Activity",
+        back_populates="destination",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
+    hotels: Mapped[List["Hotel"]] = relationship(
+        "Hotel",
+        back_populates="destination",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
+    restaurants: Mapped[List["Restaurant"]] = relationship(
+        "Restaurant",
+        back_populates="destination",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
+    transportation_options: Mapped[List["TransportationOption"]] = relationship(
+        "TransportationOption",
+        back_populates="destination",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
+    travel_routes: Mapped[List["TravelRoute"]] = relationship(
+        "TravelRoute",
+        back_populates="destination",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
+    trips: Mapped[List["Trip"]] = relationship(
+        "Trip",
+        back_populates="destination",
+    )
+
+    # Core System Relationships
     trust_metric: Mapped[Optional["TrustMetric"]] = relationship(
         "TrustMetric",
         back_populates="destination",
