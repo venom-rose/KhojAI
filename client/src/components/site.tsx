@@ -216,7 +216,57 @@ export function TrustScore({ score, compact = false }: { score: number; compact?
 }
 
 export function DestinationCard({ destination, featured = false }: { destination: Destination; featured?: boolean }) {
-  return <Link href={`/destination/${destination.slug}`} className={`group block ${featured ? "md:col-span-2" : ""}`}><article className="overflow-hidden rounded-[24px] border border-line bg-white shadow-[0_18px_50px_rgba(26,31,23,0.05)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_24px_60px_rgba(26,31,23,0.11)]"><div className={`${featured ? "aspect-[1.65]" : "aspect-[1.12]"} relative overflow-hidden bg-mist`}><img src={destination.image} alt={`${destination.name}, ${destination.state}`} className="h-full w-full object-cover transition duration-700 group-hover:scale-105" /><div className="absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-black/5" /><div className="absolute left-4 top-4 rounded-full border border-white/30 bg-black/15 px-3 py-1.5 font-mono text-[9px] uppercase tracking-[0.16em] text-white backdrop-blur-md">{destination.region}</div><div className="absolute bottom-4 left-4 right-4 flex items-end justify-between gap-3 text-white"><div><p className="mb-1 text-[11px] font-medium text-white/70">{destination.state}</p><h3 className={`font-display font-medium leading-none tracking-[-0.03em] ${featured ? "text-3xl md:text-4xl" : "text-2xl"}`}>{destination.name}</h3></div><span className="grid size-9 place-items-center rounded-full bg-white/15 backdrop-blur-md transition group-hover:bg-saffron"><ArrowUpRight size={15} /></span></div></div><div className="space-y-3 p-4"><div className="flex flex-wrap gap-1.5">{destination.tags.slice(0, 2).map((tag) => <span key={tag} className="rounded-full bg-mist px-2.5 py-1 text-[10px] font-medium text-ink/60">{tag}</span>)}</div><p className="line-clamp-2 text-sm leading-6 text-ink/65">{destination.description}</p><div className="flex items-center justify-between border-t border-line pt-3 text-[11px] text-ink/50"><span>Best {destination.bestSeason}</span><span className="flex items-center gap-2"><span>{destination.budget}</span><TrustScore score={destination.trustScore} compact /></span></div></div></article></Link>;
+  return (
+    <Link href={`/destination/${destination.slug}`} className={`group block ${featured ? "md:col-span-2" : ""}`}>
+      <article className="overflow-hidden rounded-[24px] border border-line bg-white shadow-[0_18px_50px_rgba(26,31,23,0.05)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_24px_60px_rgba(26,31,23,0.11)]">
+        <div className={`${featured ? "aspect-[1.65]" : "aspect-[1.12]"} relative overflow-hidden bg-mist`}>
+          <img
+            src={destination.image}
+            alt={`${destination.name}, ${destination.state}`}
+            className="h-full w-full object-cover transition duration-700 group-hover:scale-105"
+            onError={(e) => {
+              const target = e.currentTarget as HTMLImageElement;
+              if (!target.src.includes("hero-himalayas.jpg")) {
+                target.src = "/images/hero-himalayas.jpg";
+              }
+            }}
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-black/5" />
+          <div className="absolute left-4 top-4 rounded-full border border-white/30 bg-black/15 px-3 py-1.5 font-mono text-[9px] uppercase tracking-[0.16em] text-white backdrop-blur-md">
+            {destination.region}
+          </div>
+          <div className="absolute bottom-4 left-4 right-4 flex items-end justify-between gap-3 text-white">
+            <div>
+              <p className="mb-1 text-[11px] font-medium text-white/70">{destination.state}</p>
+              <h3 className={`font-display font-medium leading-none tracking-[-0.03em] ${featured ? "text-3xl md:text-4xl" : "text-2xl"}`}>
+                {destination.name}
+              </h3>
+            </div>
+            <span className="grid size-9 place-items-center rounded-full bg-white/15 backdrop-blur-md transition group-hover:bg-saffron">
+              <ArrowUpRight size={15} />
+            </span>
+          </div>
+        </div>
+        <div className="space-y-3 p-4">
+          <div className="flex flex-wrap gap-1.5">
+            {destination.tags.slice(0, 2).map((tag) => (
+              <span key={tag} className="rounded-full bg-mist px-2.5 py-1 text-[10px] font-medium text-ink/60">
+                {tag}
+              </span>
+            ))}
+          </div>
+          <p className="line-clamp-2 text-sm leading-6 text-ink/65">{destination.description}</p>
+          <div className="flex items-center justify-between border-t border-line pt-3 text-[11px] text-ink/50">
+            <span>Best {destination.bestSeason}</span>
+            <span className="flex items-center gap-2">
+              <span>{destination.budget}</span>
+              <TrustScore score={destination.trustScore} compact />
+            </span>
+          </div>
+        </div>
+      </article>
+    </Link>
+  );
 }
 
 export function TrustBreakdown({ score, metrics }: { score: number; metrics: Destination["trustMetrics"] }) {

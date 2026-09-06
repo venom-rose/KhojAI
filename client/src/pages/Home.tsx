@@ -8,7 +8,17 @@ export default function Home() {
     <SiteHeader dark />
     <main>
       <section className="grain relative flex min-h-[720px] items-end overflow-hidden bg-ink text-white md:min-h-[820px]">
-        <img src="/manus-storage/hidden-india-hero_13593474.jpg" alt="Misty Himalayan trail at sunrise" className="absolute inset-0 h-full w-full object-cover object-center opacity-80" />
+        <img
+          src="/images/hero-himalayas.jpg"
+          alt="Misty Himalayan trail at sunrise"
+          className="absolute inset-0 h-full w-full object-cover object-center opacity-80"
+          onError={(e) => {
+            const target = e.currentTarget as HTMLImageElement;
+            if (!target.src.includes("hero-himalayas.jpg")) {
+              target.src = "/images/hero-himalayas.jpg";
+            }
+          }}
+        />
         <div className="absolute inset-0 bg-gradient-to-r from-black/75 via-black/20 to-black/10" />
         <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-black/25" />
         <div className="container relative z-10 pb-14 pt-36 md:pb-20">

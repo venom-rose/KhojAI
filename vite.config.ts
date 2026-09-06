@@ -151,6 +151,26 @@ function vitePluginManusDebugCollector(): Plugin {
 }
 
 function vitePluginStorageProxy(): Plugin {
+  const localMap: Record<string, string> = {
+    "hero": "/images/hero-himalayas.jpg",
+    "ziro": "/images/ziro-valley.jpg",
+    "majuli": "/images/majuli-island.jpg",
+    "tirthan": "/images/tirthan-valley.jpg",
+    "gandikota": "/images/gandikota-canyon.jpg",
+    "chopta": "/images/chopta-meadows.jpg",
+    "orchha": "/images/orchha-palace.jpg",
+    "dzukou": "/images/dzukou-valley.jpg",
+    "gurez": "/images/gurez-valley.jpg",
+  };
+
+  const getLocalFallback = (key: string): string => {
+    const lower = key.toLowerCase();
+    for (const [k, v] of Object.entries(localMap)) {
+      if (lower.includes(k)) return v;
+    }
+    return "/images/hero-himalayas.jpg";
+  };
+
   return {
     name: "manus-storage-proxy",
     configureServer(server: ViteDevServer) {
@@ -166,8 +186,9 @@ function vitePluginStorageProxy(): Plugin {
         const forgeKey = process.env.BUILT_IN_FORGE_API_KEY;
 
         if (!forgeBaseUrl || !forgeKey) {
-          res.writeHead(500, { "Content-Type": "text/plain" });
-          res.end("Storage proxy not configured");
+          const fallback = getLocalFallback(key);
+          res.writeHead(302, { Location: fallback, "Cache-Control": "public, max-age=3600" });
+          res.end();
           return;
         }
 
@@ -180,23 +201,26 @@ function vitePluginStorageProxy(): Plugin {
           });
 
           if (!forgeResp.ok) {
-            res.writeHead(502, { "Content-Type": "text/plain" });
-            res.end("Storage backend error");
+            const fallback = getLocalFallback(key);
+            res.writeHead(302, { Location: fallback, "Cache-Control": "public, max-age=3600" });
+            res.end();
             return;
           }
 
           const { url } = (await forgeResp.json()) as { url: string };
           if (!url) {
-            res.writeHead(502, { "Content-Type": "text/plain" });
-            res.end("Empty signed URL");
+            const fallback = getLocalFallback(key);
+            res.writeHead(302, { Location: fallback, "Cache-Control": "public, max-age=3600" });
+            res.end();
             return;
           }
 
           res.writeHead(307, { Location: url, "Cache-Control": "no-store" });
           res.end();
         } catch {
-          res.writeHead(502, { "Content-Type": "text/plain" });
-          res.end("Storage proxy error");
+          const fallback = getLocalFallback(key);
+          res.writeHead(302, { Location: fallback, "Cache-Control": "public, max-age=3600" });
+          res.end();
         }
       });
     },
