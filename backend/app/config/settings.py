@@ -77,28 +77,34 @@ class Settings(BaseSettings):
     MAX_UPLOAD_SIZE_MB: int = 5
 
     # Travel Provider APIs
-    # AirLabs (airports, flight routes) — https://airlabs.co
+    # Travel API Providers & Strategy Configuration
+    AMADEUS_CLIENT_ID: str = ""
+    AMADEUS_CLIENT_SECRET: str = ""
+    AMADEUS_BASE_URL: str = "https://test.api.amadeus.com"
+
+    GOOGLE_MAPS_API_KEY: str = ""
+    GOOGLE_PLACES_ENABLED: bool = False
+
+    OPENTRIPMAP_API_KEY: str = ""
+    OPENTRIPMAP_BASE_URL: str = "https://api.opentripmap.com/0.1/en"
+
+    GEOAPIFY_API_KEY: str = ""
+    GEOAPIFY_BASE_URL: str = "https://api.geoapify.com/v2"
+
+    NOMINATIM_BASE_URL: str = "https://nominatim.openstreetmap.org"
+    NOMINATIM_USER_AGENT: str = "KHOJAI/1.0"
+
+    # AirLabs (airports, flight schedules fallback) — https://airlabs.co
     AIRLABS_API_KEY: str = ""
     AIRLABS_BASE_URL: str = "https://airlabs.co/api/v9"
 
-    # OpenTripMap (attractions, activities, POIs) — https://opentripmap.io
-    OPENTRIPMAP_API_KEY: str = ""
-    OPENTRIPMAP_BASE_URL: str = "https://api.opentripmap.com/0.1/en/places"
-
-    # Google Places (hotels, place search, autocomplete)
-    GOOGLE_MAPS_API_KEY: str = ""
-
-    # Shared travel provider settings
+    # Strategy & Resilience
+    TRAVEL_PROVIDER_PRIMARY: str = "opentripmap"
+    TRAVEL_PROVIDER_FALLBACK: str = "local_database"
+    TRAVEL_DEFAULT_PROVIDER: str = "opentripmap"
     TRAVEL_CACHE_TTL_SECONDS: int = 3600
     TRAVEL_API_TIMEOUT_SECONDS: float = 10.0
     TRAVEL_API_MAX_RETRIES: int = 2
-    TRAVEL_DEFAULT_PROVIDER: str = "airlabs"
-
-    # Deprecated — Amadeus Self-Service was decommissioned July 17, 2026.
-    # These fields are retained so old .env files don't cause startup errors.
-    AMADEUS_CLIENT_ID: str = ""
-    AMADEUS_CLIENT_SECRET: str = ""
-    AMADEUS_BASE_URL: str = "https://api.amadeus.com"
 
     # CORS
     CORS_ORIGINS: str = "http://localhost:3000,http://127.0.0.1:3000"

@@ -195,3 +195,74 @@ async def test_travel_agent_end_to_end_execution():
     assert "create_itinerary" in response.tools_used
     assert response.duration_ms > 0
     assert isinstance(response.tool_results, list)
+
+
+@pytest.mark.asyncio
+async def test_all_search_and_database_tools():
+    """Verify destination, attraction, activity, restaurant, airport, and place tools execute cleanly."""
+    dest_tool = default_tool_registry.get("search_destinations")
+    res = await dest_tool.execute(query="Spiti")
+    assert res.success is True
+    assert isinstance(res.data, list)
+
+    attr_tool = default_tool_registry.get("search_attractions")
+    attr_res = await attr_tool.execute(destination="Jaipur")
+    assert attr_res.success is True
+    assert isinstance(attr_res.data, list)
+
+    act_tool = default_tool_registry.get("search_activities")
+    res = await act_tool.execute(destination="Manali")
+    assert res.success is True
+    assert isinstance(res.data, list)
+
+    rest_tool = default_tool_registry.get("search_restaurants")
+    res = await rest_tool.execute(city="Jaipur")
+    assert res.success is True
+    assert isinstance(res.data, list)
+
+    airport_tool = default_tool_registry.get("search_airports")
+    res = await airport_tool.execute(keyword="Jaipur")
+    assert res.success is True
+    assert isinstance(res.data, list)
+
+    places_tool = default_tool_registry.get("search_places")
+    res = await places_tool.execute(query="Jaipur Palace")
+    assert res.success is True
+    assert isinstance(res.data, list)
+
+    details_tool = default_tool_registry.get("get_place_details")
+    if attr_res.data:
+        place_id = attr_res.data[0]["id"]
+        det_res = await details_tool.execute(place_id=place_id)
+        assert det_res.success is True
+        assert "name" in det_res.data
+    else:
+        det_res = await details_tool.execute(place_id="sample-id")
+        assert det_res.success is False
+        assert det_res.data is None
+
+    local_db_tool = default_tool_registry.get("search_local_database")
+    res = await local_db_tool.execute(query="heritage")
+    assert res.success is True
+    assert "destinations" in res.data
+    assert "attractions" in res.data
+
+    prefs_tool = default_tool_registry.get("get_user_preferences")
+    res = await prefs_tool.execute()
+    assert res.success is True
+    assert "pace" in res.data
+
+
+@pytest.mark.asyncio
+async def test_provider_tool_calling_support():
+    """Verify base and local AI providers accept tools schema parameter without error."""
+    from backend.app.ai.providers.local_provider import LocalProvider
+    provider = LocalProvider()
+    tools = [default_tool_registry.get("search_destinations").get_schema()]
+    
+    response = await provider.generate_response(
+        messages=[{"role": "user", "content": "Best places in India"}],
+        tools=tools,
+    )
+    assert response.content
+    assert response.finish_reason == "stop"

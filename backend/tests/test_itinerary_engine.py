@@ -206,3 +206,96 @@ async def test_itinerary_budget_tiers_scaling():
         budget_itin.estimated_cost.accommodation_inr
         < luxury_itin.estimated_cost.accommodation_inr
     )
+
+
+@pytest.mark.asyncio
+async def test_interest_and_activity_preference_prioritization():
+    """Verify that user interests and activity preferences influence POI selection and themes."""
+    heritage_payload = ItineraryEngineInput(
+        destination="Jaipur",
+        duration_days=2,
+        interests=["crafts", "textiles"],
+        activity_preferences=["workshop", "block printing"],
+    )
+    itin = await itinerary_engine.generate(heritage_payload)
+    assert itin.duration_days == 2
+
+    # Check that craft or textile themes appear in day clusters/activities
+    all_titles = []
+    for d in itin.days:
+        for slot in [d.morning, d.afternoon, d.evening]:
+            for act in slot.activities:
+                all_titles.append(act.title.lower() + " " + act.description.lower())
+    combined_text = " ".join(all_titles)
+    assert "craft" in combined_text or "textile" in combined_text or "anokhi" in combined_text or "print" in combined_text
+
+
+@pytest.mark.asyncio
+async def test_transportation_retrieval_and_guidance():
+    """Verify transportation information retrieval and practical transit advice."""
+    trans_info = await ItineraryGenerationEngine.retrieve_transportation(
+        destination_name="Jaipur",
+        transport_preferences="Private cab / train",
+    )
+    assert "arrival_hub" in trans_info
+    assert "local_commute" in trans_info
+    assert "transit_tip" in trans_info
+    assert len(trans_info["transit_tip"]) > 10
+
+
+@pytest.mark.asyncio
+async def test_opening_hours_and_time_slot_alignment():
+    """Verify that scheduled activities consider realistic visiting hours and maintain chronological order."""
+    payload = ItineraryEngineInput(
+        destination="Jaipur",
+        duration_days=1,
+    )
+    itin = await itinerary_engine.generate(payload)
+    day = itin.days[0]
+
+    # Morning activity start and end
+    m_act = day.morning.activities[0]
+    assert "AM" in m_act.start_time
+    assert m_act.opening_hours is not None
+
+    # Afternoon activity start and end
+    if day.afternoon.activities:
+        a_act = day.afternoon.activities[0]
+        assert "PM" in a_act.start_time or "12:" in a_act.start_time
+
+    # Evening activity
+    if day.evening.activities:
+        e_act = day.evening.activities[0]
+        assert "PM" in e_act.start_time
+        assert "06:" in e_act.start_time or "05:" in e_act.start_time or "07:" in e_act.start_time
+
+
+@pytest.mark.asyncio
+async def test_create_itinerary_tool_with_all_10_inputs():
+    """Verify CreateItineraryTool executes with all 10 user prompt parameters."""
+    from backend.app.ai.tools.trip_tools import CreateItineraryTool
+
+    tool = CreateItineraryTool()
+    res = await tool.execute(
+        destination="Jaipur",
+        days=3,
+        start_date="2026-12-01",
+        end_date="2026-12-03",
+        budget="moderate",
+        traveler_count=2,
+        interests=["heritage", "food"],
+        travel_style="slow travel",
+        hotel_preference="heritage haveli",
+        activity_preferences=["walking tour"],
+        transport_preferences="private cab",
+    )
+
+    assert res.success is True
+    assert res.data["destination"] == "Jaipur"
+    assert res.data["duration_days"] == 3
+    assert res.data["traveler_count"] == 2
+    assert "estimated_cost" in res.data
+    assert len(res.data["days"]) == 3
+    assert "morning" in res.data["days"][0]
+    assert "afternoon" in res.data["days"][0]
+    assert "evening" in res.data["days"][0]

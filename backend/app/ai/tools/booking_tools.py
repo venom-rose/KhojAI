@@ -162,12 +162,7 @@ class SearchRestaurantsTool(BaseTool):
                 )
             )
             if cuisine:
-                stmt = stmt.where(
-                    or_(
-                        Restaurant.cuisine_types.any(cuisine.lower()),
-                        Restaurant.description.ilike(f"%{cuisine}%"),
-                    )
-                )
+                stmt = stmt.where(Restaurant.cuisine_type.ilike(f"%{cuisine}%"))
 
             stmt = stmt.order_by(Restaurant.rating.desc().nullslast()).limit(limit)
             res = await session.execute(stmt)
@@ -179,11 +174,12 @@ class SearchRestaurantsTool(BaseTool):
                     "id": str(r.id),
                     "name": r.name,
                     "city": r.city.name if r.city else None,
-                    "cuisine_types": r.cuisine_types or [],
+                    "cuisine_type": r.cuisine_type,
                     "price_range": r.price_range,
                     "rating": float(r.rating) if r.rating else None,
                     "address": r.address,
-                    "phone": r.phone,
+                    "must_try_dishes": r.must_try_dishes or [],
+                    "opening_hours": r.opening_hours,
                     "opening_hours_note": "Reference hours only; verify locally before dining." if r.opening_hours else None,
                 })
 

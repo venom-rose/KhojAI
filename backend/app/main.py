@@ -108,6 +108,31 @@ def create_application() -> FastAPI:
         """Lightweight liveness probe. Returns 200 OK with no external calls."""
         return {"status": "ok", "service": "khojai-api"}
 
+    @app.get("/api/travel/providers", tags=["Travel Providers"], summary="Travel Providers Overview")
+    async def travel_providers_overview():
+        """Safe overview of travel providers without exposing credentials."""
+        from backend.app.travel.services.travel_provider_service import TravelProviderService
+        svc = TravelProviderService()
+        return {
+            "status": "active",
+            "providers": svc.get_providers_status(),
+            "primary": settings.TRAVEL_PROVIDER_PRIMARY,
+            "fallback": settings.TRAVEL_PROVIDER_FALLBACK,
+        }
+
+    @app.get("/api/health/travel", tags=["Health"], summary="Travel Providers Health Probe")
+    async def travel_health_probe():
+        """Probes travel provider readiness and cache availability."""
+        from backend.app.travel.services.travel_provider_service import TravelProviderService
+        from backend.app.travel.cache.cache_manager import travel_cache
+        svc = TravelProviderService()
+        return {
+            "status": "healthy",
+            "service": "khojai-travel-data-layer",
+            "cache": "memory_lru_active",
+            "providers": svc.get_providers_status(),
+        }
+
     return app
 
 

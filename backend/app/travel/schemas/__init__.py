@@ -92,6 +92,8 @@ from backend.app.travel.schemas.internal import (
     TravelPlace,
     TravelPlaceAutocompleteItem,
     TravelReview,
+    TravelReviewSummary,
+    TravelDestination,
 )
 
 __all__ = [
@@ -105,6 +107,8 @@ __all__ = [
     "TravelPlace",
     "TravelPlaceAutocompleteItem",
     "TravelReview",
+    "TravelReviewSummary",
+    "TravelDestination",
     # Geo
     "CountryBase",
     "CountryCreate",

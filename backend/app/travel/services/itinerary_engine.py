@@ -337,6 +337,7 @@ class ItineraryGenerationEngine:
                 or_(
                     Destination.name.ilike(f"%{clean_name}%"),
                     Destination.state.ilike(f"%{clean_name}%"),
+                    Destination.region.ilike(f"%{clean_name}%"),
                 ),
             )
             res = await session.execute(stmt)
@@ -347,12 +348,15 @@ class ItineraryGenerationEngine:
                     "id": str(dest.id),
                     "name": dest.name,
                     "state": dest.state,
-                    "country": dest.country,
-                    "description": dest.description or dest.short_description,
+                    "region": dest.region,
+                    "country": "India",
+                    "description": dest.description,
                     "latitude": float(dest.latitude) if dest.latitude else 26.9124,
                     "longitude": float(dest.longitude) if dest.longitude else 75.7873,
-                    "budget_tier": dest.budget_tier or "moderate",
-                    "tags": dest.tags or [],
+                    "budget_tier": dest.budget or "moderate",
+                    "best_season": dest.best_season,
+                    "category": dest.category,
+                    "city_id": str(dest.city_id) if dest.city_id else None,
                 }
 
         # Curated fallback
@@ -363,35 +367,78 @@ class ItineraryGenerationEngine:
                     "id": f"dest-{key}",
                     "name": dest_query.title(),
                     "state": info["state"],
+                    "region": info.get("state", "North India"),
                     "country": "India",
                     "description": f"Curated cultural and heritage region of {dest_query.title()}.",
                     "latitude": coords[0],
                     "longitude": coords[1],
                     "budget_tier": "moderate",
-                    "tags": ["heritage", "culture", "slow travel"],
+                    "best_season": "October – March",
+                    "category": "Heritage · Culture",
+                    "city_id": None,
                 }
 
         return {
             "id": "dest-general",
             "name": dest_query.title(),
             "state": "India",
+            "region": "India",
             "country": "India",
             "description": f"Enriching travel journey across {dest_query.title()}.",
             "latitude": 26.9124,
             "longitude": 75.7873,
             "budget_tier": "moderate",
-            "tags": ["culture", "heritage"],
+            "best_season": "October – March",
+            "category": "Culture · Heritage",
+            "city_id": None,
         }
+
+    # Helper: Parse price number safely
+    @staticmethod
+    def _parse_numeric_price(text: Optional[str], default_val: float) -> float:
+        if not text:
+            return default_val
+        import re
+        digits = re.findall(r"\d[\d,]*", text)
+        if digits:
+            try:
+                return float(digits[0].replace(",", ""))
+            except Exception:
+                pass
+        return default_val
+
+    # Helper: Score POI by user interests
+    @staticmethod
+    def _score_poi(category: str, desc: str, tags: List[str], interests: List[str]) -> int:
+        if not interests:
+            return 1
+        score = 0
+        cat_lower = (category or "").lower()
+        desc_lower = (desc or "").lower()
+        tags_lower = [str(t).lower() for t in (tags or [])]
+        for interest in interests:
+            term = interest.strip().lower()
+            if not term:
+                continue
+            if term in cat_lower:
+                score += 4
+            if any(term in t for t in tags_lower):
+                score += 3
+            if term in desc_lower:
+                score += 1
+        return max(1, score)
 
     # 3. Retrieve POIs & Group Geographically
     @staticmethod
     async def retrieve_and_cluster_pois(
         destination_name: str,
         interests: List[str],
+        activity_preferences: Optional[List[str]],
         duration_days: int,
     ) -> List[Dict[str, Any]]:
-        """Retrieve attractions and group them into cohesive spatial clusters for each day."""
+        """Retrieve attractions & activities, score by interests, and group them into spatial clusters."""
         clean_name = destination_name.lower()
+        combined_interests = list(interests or []) + list(activity_preferences or [])
 
         # Check curated knowledge base clusters first
         for key, data in REGIONAL_CURATED_KNOWLEDGE.items():
@@ -409,52 +456,111 @@ class ItineraryGenerationEngine:
                     })
                 return out_clusters
 
-        # Query database attractions
+        # Query database attractions & activities
+        db_attractions = []
+        db_activities = []
         async with async_session_factory() as session:
-            stmt = select(Attraction).join(Attraction.city, isouter=True).where(
-                or_(
-                    Attraction.name.ilike(f"%{clean_name}%"),
-                    City.name.ilike(f"%{clean_name}%"),
+            att_stmt = (
+                select(Attraction)
+                .join(Attraction.city, isouter=True)
+                .join(Attraction.destination, isouter=True)
+                .where(
+                    or_(
+                        Attraction.name.ilike(f"%{clean_name}%"),
+                        City.name.ilike(f"%{clean_name}%"),
+                        Destination.name.ilike(f"%{clean_name}%"),
+                    )
                 )
-            ).limit(15)
-            res = await session.execute(stmt)
-            db_attractions = res.scalars().all()
+                .limit(20)
+            )
+            att_res = await session.execute(att_stmt)
+            db_attractions = att_res.scalars().all()
+
+            act_stmt = (
+                select(Activity)
+                .join(Activity.city, isouter=True)
+                .join(Activity.destination, isouter=True)
+                .where(
+                    or_(
+                        Activity.title.ilike(f"%{clean_name}%"),
+                        Activity.activity_type.ilike(f"%{clean_name}%"),
+                        City.name.ilike(f"%{clean_name}%"),
+                        Destination.name.ilike(f"%{clean_name}%"),
+                    )
+                )
+                .limit(10)
+            )
+            act_res = await session.execute(act_stmt)
+            db_activities = act_res.scalars().all()
 
         if db_attractions:
-            # Group into day slices of 2-3 attractions per day
-            clusters = []
-            per_day = max(2, math.ceil(len(db_attractions) / duration_days))
-            for i in range(duration_days):
-                slice_start = (i * per_day) % len(db_attractions)
-                day_atts = db_attractions[slice_start : slice_start + per_day]
-                if not day_atts:
-                    day_atts = db_attractions[:2]
-
-                cluster_atts = [
+            # Score attractions based on user interests
+            scored_atts = []
+            for a in db_attractions:
+                s = ItineraryGenerationEngine._score_poi(
+                    category=a.category,
+                    desc=a.description,
+                    tags=a.tags or [],
+                    interests=combined_interests,
+                )
+                fee = ItineraryGenerationEngine._parse_numeric_price(a.entry_fee, 150.0)
+                dur = (a.recommended_duration_mins / 60.0) if a.recommended_duration_mins else 2.0
+                scored_atts.append((
+                    s,
                     {
                         "name": a.name,
                         "category": a.category or "heritage",
-                        "fee": float(a.admission_fee) if a.admission_fee else 150.0,
-                        "duration": float(a.estimated_duration_hours) if a.estimated_duration_hours else 2.0,
-                        "hours": a.opening_hours or "09:00 AM - 05:00 PM",
+                        "fee": fee,
+                        "duration": min(3.0, max(1.0, dur)),
+                        "hours": a.timings or "09:00 AM - 05:00 PM",
                         "coords": (float(a.latitude), float(a.longitude)) if a.latitude and a.longitude else (26.9124, 75.7873),
                         "desc": a.description or f"Historic attraction in {destination_name}.",
                     }
-                    for a in day_atts
-                ]
+                ))
+            scored_atts.sort(key=lambda x: x[0], reverse=True)
+            sorted_atts = [item[1] for item in scored_atts]
 
-                clusters.append({
-                    "name": f"{destination_name.title()} Cultural Sector {i+1}",
-                    "attractions": cluster_atts,
-                    "evening_activity": {
-                        "name": f"{destination_name.title()} Evening Heritage Promenade",
+            # Convert db_activities if available
+            converted_acts = [
+                {
+                    "name": act.title,
+                    "category": act.activity_type or "leisure",
+                    "fee": ItineraryGenerationEngine._parse_numeric_price(act.price_range, 350.0),
+                    "duration": min(2.5, max(1.0, float(act.duration_hours))) if act.duration_hours else 1.5,
+                    "hours": "04:30 PM - 07:30 PM",
+                    "coords": (float(act.latitude), float(act.longitude)) if act.latitude and act.longitude else (26.9124, 75.7873),
+                    "desc": act.description or f"Curated experiential activity in {destination_name}.",
+                }
+                for act in db_activities
+            ]
+
+            # Group into geographically clustered day slices
+            clusters = []
+            per_day = max(2, math.ceil(len(sorted_atts) / duration_days))
+            for i in range(duration_days):
+                slice_start = (i * per_day) % len(sorted_atts)
+                day_atts = sorted_atts[slice_start : slice_start + per_day]
+                if not day_atts:
+                    day_atts = sorted_atts[:2]
+
+                evening_act = (
+                    converted_acts[i % len(converted_acts)]
+                    if converted_acts
+                    else {
+                        "name": f"{destination_name.title()} Evening Heritage Walk",
                         "category": "leisure",
                         "fee": 0,
                         "duration": 1.5,
                         "hours": "05:00 PM - 08:00 PM",
-                        "coords": cluster_atts[0]["coords"] if cluster_atts else (26.9124, 75.7873),
+                        "coords": day_atts[0]["coords"] if day_atts else (26.9124, 75.7873),
                         "desc": "Leisurely sunset stroll exploring local markets and community ambiance.",
-                    },
+                    }
+                )
+
+                clusters.append({
+                    "name": f"{destination_name.title()} Cultural Sector {i+1}",
+                    "attractions": day_atts,
+                    "evening_activity": evening_act,
                     "dining": f"Renowned regional dining in {destination_name}.",
                 })
             return clusters
@@ -506,28 +612,6 @@ class ItineraryGenerationEngine:
     ) -> Dict[str, Any]:
         """Fetch recommended lodging matching preferences and price tier."""
         clean_name = destination_name.lower()
-        async with async_session_factory() as session:
-            stmt = select(Hotel).where(
-                or_(
-                    Hotel.name.ilike(f"%{clean_name}%"),
-                    Hotel.address.ilike(f"%{clean_name}%"),
-                )
-            ).limit(1)
-            res = await session.execute(stmt)
-            db_hotel = res.scalars().first()
-
-            if db_hotel:
-                rate = float(db_hotel.price_per_night) if db_hotel.price_per_night else 3200.0
-                return {
-                    "name": db_hotel.name,
-                    "stay_type": db_hotel.stay_type or "Boutique Heritage Stay",
-                    "nightly_rate_inr": rate,
-                    "rating": float(db_hotel.rating) if db_hotel.rating else 4.5,
-                    "amenities": db_hotel.amenities or ["WiFi", "Breakfast", "Heritage Architecture"],
-                    "address": db_hotel.address or f"Central {destination_name.title()}",
-                }
-
-        # Pricing benchmark by tier
         tier_rates = {
             "budget": 1400.0,
             "moderate": 3200.0,
@@ -539,6 +623,35 @@ class ItineraryGenerationEngine:
                 normalized_tier = t
                 break
 
+        async with async_session_factory() as session:
+            stmt = select(Hotel).join(Hotel.city, isouter=True).join(Hotel.destination, isouter=True).where(
+                or_(
+                    Hotel.name.ilike(f"%{clean_name}%"),
+                    Hotel.address.ilike(f"%{clean_name}%"),
+                    City.name.ilike(f"%{clean_name}%"),
+                    Destination.name.ilike(f"%{clean_name}%"),
+                )
+            )
+            if hotel_preference:
+                stmt = stmt.where(Hotel.stay_type.ilike(f"%{hotel_preference}%"))
+            stmt = stmt.limit(1)
+            res = await session.execute(stmt)
+            db_hotel = res.scalars().first()
+
+            if db_hotel:
+                rate = ItineraryGenerationEngine._parse_numeric_price(
+                    db_hotel.price_per_night,
+                    tier_rates[normalized_tier],
+                )
+                return {
+                    "name": db_hotel.name,
+                    "stay_type": db_hotel.stay_type or "Boutique Heritage Stay",
+                    "nightly_rate_inr": rate,
+                    "rating": float(db_hotel.rating) if db_hotel.rating else 4.5,
+                    "amenities": db_hotel.amenities or ["WiFi", "Breakfast", "Heritage Architecture"],
+                    "address": db_hotel.address or f"Central {destination_name.title()}",
+                }
+
         return {
             "name": f"{destination_name.title()} Heritage Homestay",
             "stay_type": hotel_preference.title() if hotel_preference else "Boutique Homestay",
@@ -548,7 +661,63 @@ class ItineraryGenerationEngine:
             "address": f"Heritage Quarter, {destination_name.title()}",
         }
 
-    # 5. Build Day Plan with Slots, Free Time, & Transit
+    # 5. Retrieve Transportation Information
+    @staticmethod
+    async def retrieve_transportation(
+        destination_name: str,
+        transport_preferences: str,
+    ) -> Dict[str, Any]:
+        """Fetch transport hubs and first/last mile connectivity options."""
+        clean_name = destination_name.lower()
+        options = []
+        airports = []
+
+        async with async_session_factory() as session:
+            opt_stmt = select(TransportationOption).where(
+                or_(
+                    TransportationOption.destination_name.ilike(f"%{clean_name}%"),
+                    TransportationOption.origin_name.ilike(f"%{clean_name}%"),
+                )
+            ).limit(3)
+            opt_res = await session.execute(opt_stmt)
+            for opt in opt_res.scalars().all():
+                options.append({
+                    "transport_type": opt.transport_type,
+                    "origin": opt.origin_name,
+                    "destination": opt.destination_name,
+                    "duration_hours": float(opt.duration_hours),
+                    "cost_estimate": opt.cost_estimate,
+                    "booking_tips": opt.booking_tips,
+                })
+
+            air_stmt = select(Airport).where(
+                Airport.name.ilike(f"%{clean_name}%")
+            ).limit(2)
+            air_res = await session.execute(air_stmt)
+            for a in air_res.scalars().all():
+                airports.append({
+                    "name": a.name,
+                    "iata_code": a.iata_code,
+                    "is_international": a.is_international,
+                })
+
+        arrival_hub = f"Nearest regional hub for {destination_name.title()}"
+        if airports:
+            arrival_hub = f"{airports[0]['name']} ({airports[0]['iata_code']})"
+        elif options:
+            arrival_hub = f"{options[0]['origin']} via {options[0]['transport_type']}"
+
+        return {
+            "arrival_hub": arrival_hub,
+            "local_commute": transport_preferences or "Private cab / registered auto-rickshaw",
+            "available_transit_options": options,
+            "nearby_airports": airports,
+            "transit_tip": (
+                "For historic quarters with narrow heritage lanes, pre-book registered e-rickshaws or take walking tours to avoid traffic congestion."
+            ),
+        }
+
+    # 6. Build Day Plan with Slots, Free Time, & Transit
     @staticmethod
     def construct_day_plan(
         day_num: int,
@@ -583,12 +752,12 @@ class ItineraryGenerationEngine:
                     category=att1.get("category", "heritage"),
                     start_time="09:30 AM",
                     end_time="12:00 PM",
-                    duration_hours=att1.get("duration", 2.0),
+                    duration_hours=min(2.5, att1.get("duration", 2.0)),
                     description=att1.get("desc", ""),
                     cost_estimate_inr=float(att1.get("fee", 100)),
                     latitude=c1[0],
                     longitude=c1[1],
-                    opening_hours=att1.get("hours"),
+                    opening_hours=att1.get("hours", "09:00 AM - 05:00 PM"),
                     transit_from_previous={
                         "from": "Hotel",
                         "distance_km": dist,
@@ -606,7 +775,7 @@ class ItineraryGenerationEngine:
             culinary_recommendation="Traditional morning chai and local savory kachoris.",
         )
 
-        # Afternoon Slot: 02:00 PM - 05:30 PM (after 1-hour relaxed lunch)
+        # Afternoon Slot: 01:00 PM - 05:30 PM (after 1-hour relaxed lunch)
         afternoon_activities: List[TimeSlotActivity] = []
         if att2:
             c2 = att2["coords"]
@@ -623,12 +792,12 @@ class ItineraryGenerationEngine:
                     category=att2.get("category", "heritage"),
                     start_time="02:30 PM",
                     end_time="04:30 PM",
-                    duration_hours=att2.get("duration", 1.5),
+                    duration_hours=min(2.0, att2.get("duration", 1.5)),
                     description=att2.get("desc", ""),
                     cost_estimate_inr=float(att2.get("fee", 50)),
                     latitude=c2[0],
                     longitude=c2[1],
-                    opening_hours=att2.get("hours"),
+                    opening_hours=att2.get("hours", "09:30 AM - 05:00 PM"),
                     transit_from_previous={
                         "from": att1["name"] if att1 else "Lunch Stop",
                         "distance_km": dist,
@@ -662,12 +831,12 @@ class ItineraryGenerationEngine:
                     category=evening.get("category", "leisure"),
                     start_time="06:00 PM",
                     end_time="07:45 PM",
-                    duration_hours=evening.get("duration", 1.5),
+                    duration_hours=min(2.0, evening.get("duration", 1.5)),
                     description=evening.get("desc", ""),
                     cost_estimate_inr=float(evening.get("fee", 0)),
                     latitude=ec[0],
                     longitude=ec[1],
-                    opening_hours=evening.get("hours"),
+                    opening_hours=evening.get("hours", "05:00 PM - 08:30 PM"),
                     transit_from_previous={
                         "from": "Afternoon Hub",
                         "distance_km": dist,
@@ -698,7 +867,7 @@ class ItineraryGenerationEngine:
             day_total_transit_minutes=day_transit_min,
         )
 
-    # 6. Calculate Budget & Itemized Costs
+    # 7. Calculate Budget & Itemized Costs
     @staticmethod
     def calculate_cost_breakdown(
         duration_days: int,
@@ -720,12 +889,12 @@ class ItineraryGenerationEngine:
                     admissions_per_person += act.cost_estimate_inr
         activities_total = round(admissions_per_person * traveler_count, 2)
 
-        # Local transit estimate (approx ₹750 - ₹1200 / day for auto/cab)
-        daily_transit_rate = 900.0 if "budget" in budget_tier.lower() else 1500.0
+        # Local transit estimate (approx ₹800 - ₹3000 / day depending on tier)
+        daily_transit_rate = 800.0 if "budget" in budget_tier.lower() else (3000.0 if "luxury" in budget_tier.lower() else 1500.0)
         local_transport_total = round(daily_transit_rate * duration_days, 2)
 
-        # Food & dining estimate per traveler per day (₹600 - ₹1500/day)
-        daily_food_pp = 700.0 if "budget" in budget_tier.lower() else (1200.0 if "moderate" in budget_tier.lower() else 2500.0)
+        # Food & dining estimate per traveler per day (₹650 - ₹2800/day)
+        daily_food_pp = 650.0 if "budget" in budget_tier.lower() else (2800.0 if "luxury" in budget_tier.lower() else 1300.0)
         food_total = round(daily_food_pp * duration_days * traveler_count, 2)
 
         # 10% contingency buffer
@@ -745,7 +914,7 @@ class ItineraryGenerationEngine:
             currency="INR",
         )
 
-    # 7. Master Entry Point: Generate Itinerary
+    # 8. Master Entry Point: Generate Itinerary
     async def generate(self, payload: ItineraryEngineInput) -> StructuredTripItinerary:
         """Generate a complete, deterministic, geographically clustered travel itinerary."""
         # 1. Validate dates & duration
@@ -762,6 +931,7 @@ class ItineraryGenerationEngine:
         clusters = await self.retrieve_and_cluster_pois(
             destination_name=destination_data["name"],
             interests=payload.interests,
+            activity_preferences=payload.activity_preferences,
             duration_days=duration_days,
         )
 
@@ -772,7 +942,13 @@ class ItineraryGenerationEngine:
             budget_tier=payload.budget,
         )
 
-        # 5. Build daily schedule
+        # 5. Retrieve transportation information
+        transport_guidance = await self.retrieve_transportation(
+            destination_name=destination_data["name"],
+            transport_preferences=payload.transport_preferences,
+        )
+
+        # 6. Build daily schedule
         day_plans: List[DayPlan] = []
         for i in range(duration_days):
             day_plan = self.construct_day_plan(
@@ -784,7 +960,7 @@ class ItineraryGenerationEngine:
             )
             day_plans.append(day_plan)
 
-        # 6. Compute costs
+        # 7. Compute costs
         costs = self.calculate_cost_breakdown(
             duration_days=duration_days,
             traveler_count=payload.traveler_count,
@@ -793,19 +969,13 @@ class ItineraryGenerationEngine:
             budget_tier=payload.budget,
         )
 
-        # 7. Summary and logistics
+        # 8. Summary narrative
         summary = (
             f"An authentic {duration_days}-day journey through {destination_data['name']}, designed for "
             f"{payload.traveler_count} traveler(s) at an unhurried, culturally grounded pace. "
             f"Each day focuses on a distinct geographic neighborhood to avoid unnecessary transit, "
             f"balancing iconic monuments with peaceful craft ateliers, sacred springs, and local culinary heritage."
         )
-
-        transport_guidance = {
-            "arrival_hub": f"Reach {destination_data['name']} via direct train or flight.",
-            "local_commute": payload.transport_preferences,
-            "transit_tip": "For historic quarters with narrow lanes, pre-book registered e-rickshaws or take walking tours to avoid traffic congestion.",
-        }
 
         curator_notes = [
             "Dress respectfully when entering temples or traditional royal pavilions.",

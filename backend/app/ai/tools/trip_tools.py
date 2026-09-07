@@ -85,17 +85,55 @@ class CreateItineraryTool(BaseTool):
         "properties": {
             "destination": {
                 "type": "string",
-                "description": "Primary destination or region (e.g. 'Rajasthan', 'Jaipur', 'Meghalaya').",
+                "description": "Primary destination or region (e.g. 'Rajasthan', 'Jaipur', 'Meghalaya', 'Spiti').",
             },
             "days": {
                 "type": "integer",
                 "description": "Number of days for the itinerary (e.g. 3, 5, 7).",
                 "default": 5,
             },
+            "start_date": {
+                "type": "string",
+                "description": "Optional trip start date in YYYY-MM-DD format.",
+            },
+            "end_date": {
+                "type": "string",
+                "description": "Optional trip end date in YYYY-MM-DD format.",
+            },
+            "budget": {
+                "type": "string",
+                "description": "Budget tier ('budget', 'moderate', 'luxury') or target amount (e.g. '₹25,000').",
+                "default": "moderate",
+            },
+            "traveler_count": {
+                "type": "integer",
+                "description": "Number of travelers.",
+                "default": 1,
+            },
+            "interests": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "Traveler interests (e.g. ['heritage', 'monuments', 'food', 'nature', 'crafts']).",
+            },
             "travel_style": {
                 "type": "string",
-                "description": "Pace or theme (e.g. 'heritage', 'slow travel', 'budget', 'wildlife').",
+                "description": "Pace or style (e.g. 'slow travel', 'relaxed', 'adventure', 'moderate').",
                 "default": "slow travel",
+            },
+            "hotel_preference": {
+                "type": "string",
+                "description": "Preferred lodging style (e.g. 'boutique homestay', 'heritage haveli', 'budget hostel').",
+                "default": "boutique homestay",
+            },
+            "activity_preferences": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "Preferred activity types (e.g. ['walking tour', 'cooking workshop', 'monuments']).",
+            },
+            "transport_preferences": {
+                "type": "string",
+                "description": "Preferred local commute mode (e.g. 'private cab', 'auto-rickshaw', 'train/public').",
+                "default": "private cab / train",
             },
             "stops": {
                 "type": "array",
@@ -103,7 +141,7 @@ class CreateItineraryTool(BaseTool):
                 "description": "Optional list of cities/stops included in the trip.",
             },
         },
-        "required": ["destination", "days"],
+        "required": ["destination"],
     }
 
     async def execute(
@@ -115,6 +153,9 @@ class CreateItineraryTool(BaseTool):
         budget: str = "moderate",
         traveler_count: int = 1,
         travel_style: str = "slow travel",
+        hotel_preference: str = "boutique homestay",
+        activity_preferences: Optional[List[str]] = None,
+        transport_preferences: str = "private cab / train",
         interests: Optional[List[str]] = None,
         stops: Optional[List[str]] = None,
         **kwargs,
@@ -131,6 +172,9 @@ class CreateItineraryTool(BaseTool):
             traveler_count=traveler_count,
             interests=interests or [],
             travel_style=travel_style,
+            hotel_preference=hotel_preference,
+            activity_preferences=activity_preferences or [],
+            transport_preferences=transport_preferences,
         )
 
         structured_trip = await itinerary_engine.generate(engine_input)

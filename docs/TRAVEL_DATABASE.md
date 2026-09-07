@@ -150,11 +150,20 @@ To maintain sub-10ms response times across geo-spatial and faceted searches, the
 | Index Name | Table | Columns | Purpose |
 | :--- | :--- | :--- | :--- |
 | `idx_destinations_name` | `destinations` | `name` | Exact and prefix title searches |
+| `idx_destinations_category` | `destinations` | `category` | Taxonomy keyword filtering |
 | `idx_destinations_coordinates`| `destinations` | `latitude, longitude` | Radius / bounding box geo-lookups |
 | `idx_destinations_geo_hierarchy` | `destinations` | `country_id, state_id, city_id` | Drill-down queries |
 | `idx_destinations_filter` | `destinations` | `region, budget, state` | Landing page and search facets |
 | `idx_destinations_provenance` | `destinations` | `source, source_id` | Synchronization auditing |
+| `idx_dest_tags_dest_tag` | `destination_tags` | `destination_id, tag` | Fast tag lookup per destination |
+| `idx_dest_categories_slug_name` | `destination_categories` | `slug, name` | Category resolution by URL slug |
 | `idx_cities_coordinates` | `cities` | `latitude, longitude` | Proximity to transit hubs |
+| `idx_cities_name` | `cities` | `name` | City name search |
+| `idx_countries_code_name` | `countries` | `code, name` | ISO nation identification |
+| `idx_attractions_name_cat` | `attractions` | `name, category` | POI type exploration |
+| `idx_attractions_coordinates` | `attractions` | `latitude, longitude` | Geographic POI clustering |
+| `idx_hotels_coordinates` | `hotels` | `latitude, longitude` | Stay proximity searches |
+| `idx_restaurants_coordinates` | `restaurants` | `latitude, longitude` | Food and hearth proximity searches |
 | `idx_airports_iata` | `airports` | `iata_code` | Flight search routing |
 | `idx_trips_share_token` | `trips` | `share_token` | Public itinerary URL resolution |
 | `idx_trip_items_day_order` | `trip_items` | `trip_day_id, sort_order` | Day-by-day chronological sorting |

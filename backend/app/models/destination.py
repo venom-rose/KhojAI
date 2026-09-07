@@ -196,6 +196,7 @@ class Destination(Base, UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin, Pr
         CheckConstraint("length(budget) >= 1 AND length(budget) <= 5", name="ck_destinations_budget"),
         Index("idx_destinations_filter", "region", "budget", "state"),
         Index("idx_destinations_name", "name"),
+        Index("idx_destinations_category", "category"),
         Index("idx_destinations_coordinates", "latitude", "longitude"),
         Index("idx_destinations_geo_hierarchy", "country_id", "state_id", "city_id"),
         Index("idx_destinations_provenance", "source", "source_id"),
@@ -344,6 +345,10 @@ class DestinationTag(Base, UUIDPrimaryKeyMixin):
     destination: Mapped["Destination"] = relationship(
         "Destination",
         back_populates="tags",
+    )
+
+    __table_args__ = (
+        Index("idx_dest_tags_dest_tag", "destination_id", "tag"),
     )
 
     def __repr__(self) -> str:

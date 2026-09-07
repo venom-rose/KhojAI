@@ -21,16 +21,21 @@ from backend.app.travel.schemas.internal import (
 logger = logging.getLogger("khojai.travel.services.provider_service")
 
 
+from backend.app.travel.providers.amadeus_provider import AmadeusProvider
+from backend.app.travel.providers.geoapify_provider import GeoapifyProvider
+from backend.app.travel.providers.nominatim_provider import NominatimProvider
+
+
 class TravelProviderService:
     """High-level service managing provider routing, caching, rate-limit fallback, and resilience.
 
     Provider routing:
-    - Hotels:     Google Places → Local DB
-    - Flights:    AirLabs (routes/schedules) → empty (no real-time pricing)
-    - Activities: OpenTripMap → Local DB
-    - Airports:   AirLabs → Local DB
-    - Places:     Google Places → OpenTripMap → Local DB
-    - Autocomplete: Google Places → OpenTripMap → Local DB
+    - Hotels:     Amadeus → Google Places → Geoapify → Local DB
+    - Flights:    Amadeus → AirLabs (routes/schedules) → Local DB
+    - Activities: Amadeus → OpenTripMap → Geoapify → Local DB
+    - Airports:   Amadeus → AirLabs → Local DB
+    - Places:     Google Places → Geoapify → OpenTripMap → Nominatim → Local DB
+    - Autocomplete: Google Places → Geoapify → Local DB
     """
 
     def __init__(
@@ -39,11 +44,17 @@ class TravelProviderService:
         opentripmap_provider: Optional[OpenTripMapProvider] = None,
         google_provider: Optional[GooglePlacesProvider] = None,
         local_db_provider: Optional[LocalDatabaseProvider] = None,
+        amadeus_provider: Optional[AmadeusProvider] = None,
+        geoapify_provider: Optional[GeoapifyProvider] = None,
+        nominatim_provider: Optional[NominatimProvider] = None,
     ):
         self.airlabs = airlabs_provider or AirLabsProvider()
         self.opentripmap = opentripmap_provider or OpenTripMapProvider()
         self.google = google_provider or GooglePlacesProvider()
         self.local_db = local_db_provider or LocalDatabaseProvider()
+        self.amadeus = amadeus_provider or AmadeusProvider()
+        self.geoapify = geoapify_provider or GeoapifyProvider()
+        self.nominatim = nominatim_provider or NominatimProvider()
 
     # --- Hotels (Google Places primary, Local DB fallback) ---
     async def get_hotels(
@@ -375,3 +386,49 @@ class TravelProviderService:
     async def fetch_place_photo(self, photo_name: str) -> Optional[tuple[bytes, str]]:
         """Proxy Google Places photo bytes without exposing the API key to client."""
         return await self.google.fetch_photo_bytes(photo_name)
+
+    def get_providers_status(self) -> Dict[str, Any]:
+        """Return safe provider operational and configuration status without exposing credentials."""
+        return {
+            "amadeus": {
+                "configured": self.amadeus.is_configured,
+                "tier": "self_service",
+                "capabilities": ["flights", "hotels", "airports", "activities"],
+            },
+            "google_places": {
+                "configured": self.google.is_configured,
+                "tier": "pay_as_you_go_trial",
+                "capabilities": ["places", "autocomplete", "photos", "details"],
+            },
+            "opentripmap": {
+                "configured": self.opentripmap.is_configured,
+                "tier": "free",
+                "capabilities": ["activities", "attractions", "places"],
+            },
+            "geoapify": {
+                "configured": self.geoapify.is_configured,
+                "tier": "free_tier",
+                "capabilities": ["places", "autocomplete", "details", "hotels", "activities"],
+            },
+            "nominatim": {
+                "configured": self.nominatim.is_configured,
+                "tier": "public_osm",
+                "capabilities": ["geocoding", "reverse_geocoding", "places"],
+            },
+            "local_database": {
+                "configured": True,
+                "tier": "local",
+                "capabilities": ["destinations", "attractions", "activities", "hotels", "airports", "restaurants"],
+            },
+            "local_db": {
+                "configured": True,
+                "tier": "local",
+                "capabilities": ["destinations", "attractions", "activities", "hotels", "airports", "restaurants"],
+            },
+            "airlabs": {
+                "configured": self.airlabs.is_configured,
+                "tier": "free",
+                "capabilities": ["flights", "airports"],
+            },
+        }
+

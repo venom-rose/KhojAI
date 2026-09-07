@@ -92,6 +92,7 @@ class LocalProvider(BaseAIProvider):
         system_prompt: Optional[str] = None,
         model: Optional[str] = None,
         temperature: Optional[float] = None,
+        tools: Optional[List[Dict[str, Any]]] = None,
     ) -> AIResponse:
         """Synthesize response from conversation context."""
         last_user_msg = next(
@@ -120,6 +121,7 @@ class LocalProvider(BaseAIProvider):
         system_prompt: Optional[str] = None,
         model: Optional[str] = None,
         temperature: Optional[float] = None,
+        tools: Optional[List[Dict[str, Any]]] = None,
     ) -> AsyncIterator[str]:
         """Stream response tokens word by word with minimal async sleep."""
         last_user_msg = next(

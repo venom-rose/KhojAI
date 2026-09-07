@@ -86,6 +86,14 @@ class TripRepository:
         await self.session.flush()
         return item
 
+    async def delete_trip(self, trip_id: UUID) -> bool:
+        trip = await self.get_by_id(trip_id)
+        if trip:
+            await self.session.delete(trip)
+            await self.session.flush()
+            return True
+        return False
+
     # Preferences
     async def get_user_preference(self, user_id: UUID) -> Optional[UserTravelPreference]:
         stmt = select(UserTravelPreference).where(UserTravelPreference.user_id == user_id)

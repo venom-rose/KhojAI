@@ -4,7 +4,7 @@ import argparse
 import asyncio
 from datetime import datetime, timezone
 from typing import Any, Dict
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.database.session import AsyncSessionFactory
@@ -168,152 +168,6 @@ async def seed_travel_database(session: AsyncSession) -> Dict[str, int]:
             session.add(dest)
             await session.flush()
             stats["destinations"] += 1
-
-            # Tags
-            for t in d_data.get("tags", []):
-                session.add(DestinationTag(destination_id=dest.id, tag=t))
-
-            # Seasons
-            for s in d_data.get("seasons", []):
-                await dest_repo.add_season(
-                    destination_id=dest.id,
-                    season_name=s["season_name"],
-                    start_month=s["start_month"],
-                    end_month=s["end_month"],
-                    weather_summary=s["weather_summary"],
-                    avg_temp_min_c=s.get("avg_temp_min_c"),
-                    avg_temp_max_c=s.get("avg_temp_max_c"),
-                    rainfall_level=s.get("rainfall_level", "moderate"),
-                    is_recommended=s.get("is_recommended", True),
-                    advisory_notes=s.get("advisory_notes"),
-                    source="seed_verified",
-                    source_id=f"season/{dest.slug}/{s['season_name'].lower().replace(' ', '_')}",
-                )
-                stats["seasons"] += 1
-
-            # Tips
-            for tip in d_data.get("tips", []):
-                await dest_repo.add_travel_tip(
-                    destination_id=dest.id,
-                    category=tip.get("category", "logistics"),
-                    title=tip["title"],
-                    content=tip["content"],
-                    priority=tip.get("priority", 1),
-                    source="seed_verified",
-                    source_id=f"tip/{dest.slug}/{tip['title'][:20].lower().replace(' ', '_')}",
-                )
-                stats["travel_tips"] += 1
-
-            # Attractions
-            for attr in d_data.get("attractions", []):
-                await poi_repo.create_attraction(
-                    destination_id=dest.id,
-                    city_id=city_entity.id if city_entity else None,
-                    name=attr["name"],
-                    category=attr["category"],
-                    description=attr["description"],
-                    latitude=attr.get("latitude"),
-                    longitude=attr.get("longitude"),
-                    entry_fee=attr.get("entry_fee", "Free"),
-                    timings=attr.get("timings", "Daylight hours"),
-                    difficulty=attr.get("difficulty", "Easy"),
-                    recommended_duration_mins=attr.get("recommended_duration_mins", 120),
-                    tags=attr.get("tags", []),
-                    source="seed_verified",
-                    source_id=f"attr/{dest.slug}/{attr['name'].lower().replace(' ', '_')}",
-                )
-                stats["attractions"] += 1
-
-            # Activities
-            for act in d_data.get("activities", []):
-                await poi_repo.create_activity(
-                    destination_id=dest.id,
-                    city_id=city_entity.id if city_entity else None,
-                    title=act["title"],
-                    activity_type=act["activity_type"],
-                    description=act["description"],
-                    duration_hours=act.get("duration_hours", 2.5),
-                    price_range=act.get("price_range", "₹500"),
-                    seasonality=act.get("seasonality", "All year"),
-                    guide_required=act.get("guide_required", True),
-                    source="seed_verified",
-                    source_id=f"act/{dest.slug}/{act['title'][:20].lower().replace(' ', '_')}",
-                )
-                stats["activities"] += 1
-
-            # Hotels
-            for h in d_data.get("hotels", []):
-                await poi_repo.create_hotel(
-                    destination_id=dest.id,
-                    city_id=city_entity.id if city_entity else None,
-                    name=h["name"],
-                    stay_type=h.get("stay_type", "Homestay"),
-                    address=h["address"],
-                    latitude=h.get("latitude"),
-                    longitude=h.get("longitude"),
-                    price_per_night=h.get("price_per_night", "₹1,500 – ₹2,500"),
-                    price_level=h.get("price_level", "₹₹"),
-                    rating=h.get("rating", 4.7),
-                    amenities=h.get("amenities", []),
-                    sustainability_rating=h.get("sustainability_rating", 90),
-                    source="seed_verified",
-                    source_id=f"hotel/{dest.slug}/{h['name'].lower().replace(' ', '_')}",
-                )
-                stats["hotels"] += 1
-
-            # Restaurants
-            for r in d_data.get("restaurants", []):
-                await poi_repo.create_restaurant(
-                    destination_id=dest.id,
-                    city_id=city_entity.id if city_entity else None,
-                    name=r["name"],
-                    cuisine_type=r["cuisine_type"],
-                    address=r["address"],
-                    latitude=r.get("latitude"),
-                    longitude=r.get("longitude"),
-                    price_range=r.get("price_range", "₹"),
-                    rating=r.get("rating", 4.5),
-                    must_try_dishes=r.get("must_try_dishes", []),
-                    opening_hours=r.get("opening_hours", "11:00 AM – 08:30 PM"),
-                    source="seed_verified",
-                    source_id=f"rest/{dest.slug}/{r['name'].lower().replace(' ', '_')}",
-                )
-                stats["restaurants"] += 1
-
-            # Transportation options
-            for opt in d_data.get("transportation_options", []):
-                await transit_repo.create_transportation_option(
-                    destination_id=dest.id,
-                    transport_type=opt["transport_type"],
-                    origin_name=opt["origin_name"],
-                    destination_name=opt["destination_name"],
-                    duration_hours=opt["duration_hours"],
-                    cost_estimate=opt["cost_estimate"],
-                    frequency=opt.get("frequency", "Daily"),
-                    operator_name=opt.get("operator_name"),
-                    booking_tips=opt.get("booking_tips"),
-                    source="seed_verified",
-                    source_id=f"transport/{dest.slug}/{opt['transport_type'].lower().replace(' ', '_')}",
-                )
-                stats["transportation_options"] += 1
-
-            # Routes
-            for tr in d_data.get("travel_routes", []):
-                await transit_repo.create_travel_route(
-                    destination_id=dest.id,
-                    origin_city_id=city_entity.id if city_entity else None,
-                    route_name=tr["route_name"],
-                    mode=tr.get("mode", "Road"),
-                    distance_km=tr["distance_km"],
-                    typical_duration_hours=tr["typical_duration_hours"],
-                    road_condition=tr.get("road_condition", ""),
-                    scenic_rating=tr.get("scenic_rating", 9),
-                    seasonal_notes=tr.get("seasonal_notes"),
-                    source="seed_verified",
-                    source_id=f"route/{dest.slug}/{tr['route_name'][:20].lower().replace(' ', '_')}",
-                )
-                stats["travel_routes"] += 1
-
         else:
             # Update missing FK references if previously seeded with older schema
             if not dest.country_id and country_entity:
@@ -330,8 +184,252 @@ async def seed_travel_database(session: AsyncSession) -> Dict[str, int]:
                 dest.last_synced_at = datetime.now(timezone.utc)
             stats["destinations"] += 1
 
+        # Seed all child POIs, seasons, tips, transit idempotently
+        await _seed_destination_children(
+            session=session,
+            dest=dest,
+            d_data=d_data,
+            city_entity=city_entity,
+            dest_repo=dest_repo,
+            poi_repo=poi_repo,
+            transit_repo=transit_repo,
+            stats=stats,
+        )
+
     await session.commit()
-    return stats
+
+    # Query total records across all travel tables for clear reporting
+    total_stats = {
+        "countries": (await session.execute(select(func.count(Country.id)))).scalar_one(),
+        "states": (await session.execute(select(func.count(State.id)))).scalar_one(),
+        "cities": (await session.execute(select(func.count(City.id)))).scalar_one(),
+        "categories": (await session.execute(select(func.count(DestinationCategory.id)))).scalar_one(),
+        "destinations": (await session.execute(select(func.count(Destination.id)))).scalar_one(),
+        "airports": (await session.execute(select(func.count(Airport.id)))).scalar_one(),
+        "seasons": (await session.execute(select(func.count(Season.id)))).scalar_one(),
+        "travel_tips": (await session.execute(select(func.count(TravelTip.id)))).scalar_one(),
+        "attractions": (await session.execute(select(func.count(Attraction.id)))).scalar_one(),
+        "activities": (await session.execute(select(func.count(Activity.id)))).scalar_one(),
+        "hotels": (await session.execute(select(func.count(Hotel.id)))).scalar_one(),
+        "restaurants": (await session.execute(select(func.count(Restaurant.id)))).scalar_one(),
+        "transportation_options": (await session.execute(select(func.count(TransportationOption.id)))).scalar_one(),
+        "travel_routes": (await session.execute(select(func.count(TravelRoute.id)))).scalar_one(),
+    }
+    return total_stats
+
+
+async def _seed_destination_children(
+    session: AsyncSession,
+    dest: Destination,
+    d_data: Dict[str, Any],
+    city_entity: Optional[City],
+    dest_repo: DestinationRepository,
+    poi_repo: POIRepository,
+    transit_repo: TransitRepository,
+    stats: Dict[str, int],
+) -> None:
+    """Seed all child entities (tags, seasons, tips, attractions, activities, hotels, restaurants, transit) idempotently."""
+    # 1. Tags
+    existing_tags_res = await session.execute(
+        select(DestinationTag.tag).where(DestinationTag.destination_id == dest.id)
+    )
+    existing_tags = set(existing_tags_res.scalars().all())
+    for t in d_data.get("tags", []):
+        if t not in existing_tags:
+            session.add(DestinationTag(destination_id=dest.id, tag=t))
+            existing_tags.add(t)
+
+    # 2. Seasons
+    existing_seasons_res = await session.execute(
+        select(Season.season_name).where(Season.destination_id == dest.id)
+    )
+    existing_seasons = set(existing_seasons_res.scalars().all())
+    for s in d_data.get("seasons", []):
+        if s["season_name"] not in existing_seasons:
+            await dest_repo.add_season(
+                destination_id=dest.id,
+                season_name=s["season_name"],
+                start_month=s["start_month"],
+                end_month=s["end_month"],
+                weather_summary=s["weather_summary"],
+                avg_temp_min_c=s.get("avg_temp_min_c"),
+                avg_temp_max_c=s.get("avg_temp_max_c"),
+                rainfall_level=s.get("rainfall_level", "moderate"),
+                is_recommended=s.get("is_recommended", True),
+                advisory_notes=s.get("advisory_notes"),
+                source="seed_verified",
+                source_id=f"season/{dest.slug}/{s['season_name'].lower().replace(' ', '_')}",
+            )
+            existing_seasons.add(s["season_name"])
+            stats["seasons"] += 1
+
+    # 3. Tips
+    existing_tips_res = await session.execute(
+        select(TravelTip.title).where(TravelTip.destination_id == dest.id)
+    )
+    existing_tips = set(existing_tips_res.scalars().all())
+    for tip in d_data.get("tips", []):
+        if tip["title"] not in existing_tips:
+            await dest_repo.add_travel_tip(
+                destination_id=dest.id,
+                category=tip.get("category", "logistics"),
+                title=tip["title"],
+                content=tip["content"],
+                priority=tip.get("priority", 1),
+                source="seed_verified",
+                source_id=f"tip/{dest.slug}/{tip['title'][:20].lower().replace(' ', '_')}",
+            )
+            existing_tips.add(tip["title"])
+            stats["travel_tips"] += 1
+
+    # 4. Attractions
+    existing_attractions_res = await session.execute(
+        select(Attraction.name).where(Attraction.destination_id == dest.id)
+    )
+    existing_attractions = set(existing_attractions_res.scalars().all())
+    for attr in d_data.get("attractions", []):
+        if attr["name"] not in existing_attractions:
+            await poi_repo.create_attraction(
+                destination_id=dest.id,
+                city_id=city_entity.id if city_entity else None,
+                name=attr["name"],
+                category=attr["category"],
+                description=attr["description"],
+                latitude=attr.get("latitude"),
+                longitude=attr.get("longitude"),
+                entry_fee=attr.get("entry_fee", "Free"),
+                timings=attr.get("timings", "Daylight hours"),
+                difficulty=attr.get("difficulty", "Easy"),
+                recommended_duration_mins=attr.get("recommended_duration_mins", 120),
+                tags=attr.get("tags", []),
+                source="seed_verified",
+                source_id=f"attr/{dest.slug}/{attr['name'].lower().replace(' ', '_')}",
+            )
+            existing_attractions.add(attr["name"])
+            stats["attractions"] += 1
+
+    # 5. Activities
+    existing_activities_res = await session.execute(
+        select(Activity.title).where(Activity.destination_id == dest.id)
+    )
+    existing_activities = set(existing_activities_res.scalars().all())
+    for act in d_data.get("activities", []):
+        if act["title"] not in existing_activities:
+            await poi_repo.create_activity(
+                destination_id=dest.id,
+                city_id=city_entity.id if city_entity else None,
+                title=act["title"],
+                activity_type=act["activity_type"],
+                description=act["description"],
+                duration_hours=act.get("duration_hours", 2.5),
+                price_range=act.get("price_range", "₹500"),
+                seasonality=act.get("seasonality", "All year"),
+                guide_required=act.get("guide_required", True),
+                source="seed_verified",
+                source_id=f"act/{dest.slug}/{act['title'][:20].lower().replace(' ', '_')}",
+            )
+            existing_activities.add(act["title"])
+            stats["activities"] += 1
+
+    # 6. Hotels
+    existing_hotels_res = await session.execute(
+        select(Hotel.name).where(Hotel.destination_id == dest.id)
+    )
+    existing_hotels = set(existing_hotels_res.scalars().all())
+    for h in d_data.get("hotels", []):
+        if h["name"] not in existing_hotels:
+            await poi_repo.create_hotel(
+                destination_id=dest.id,
+                city_id=city_entity.id if city_entity else None,
+                name=h["name"],
+                stay_type=h.get("stay_type", "Homestay"),
+                address=h["address"],
+                latitude=h.get("latitude"),
+                longitude=h.get("longitude"),
+                price_per_night=h.get("price_per_night", "₹1,500 – ₹2,500"),
+                price_level=h.get("price_level", "₹₹"),
+                rating=h.get("rating", 4.7),
+                amenities=h.get("amenities", []),
+                sustainability_rating=h.get("sustainability_rating", 90),
+                source="seed_verified",
+                source_id=f"hotel/{dest.slug}/{h['name'].lower().replace(' ', '_')}",
+            )
+            existing_hotels.add(h["name"])
+            stats["hotels"] += 1
+
+    # 7. Restaurants
+    existing_restaurants_res = await session.execute(
+        select(Restaurant.name).where(Restaurant.destination_id == dest.id)
+    )
+    existing_restaurants = set(existing_restaurants_res.scalars().all())
+    for r in d_data.get("restaurants", []):
+        if r["name"] not in existing_restaurants:
+            await poi_repo.create_restaurant(
+                destination_id=dest.id,
+                city_id=city_entity.id if city_entity else None,
+                name=r["name"],
+                cuisine_type=r["cuisine_type"],
+                address=r["address"],
+                latitude=r.get("latitude"),
+                longitude=r.get("longitude"),
+                price_range=r.get("price_range", "₹"),
+                rating=r.get("rating", 4.5),
+                must_try_dishes=r.get("must_try_dishes", []),
+                opening_hours=r.get("opening_hours", "11:00 AM – 08:30 PM"),
+                source="seed_verified",
+                source_id=f"rest/{dest.slug}/{r['name'].lower().replace(' ', '_')}",
+            )
+            existing_restaurants.add(r["name"])
+            stats["restaurants"] += 1
+
+    # 8. Transportation options
+    existing_trans_res = await session.execute(
+        select(TransportationOption.transport_type, TransportationOption.origin_name).where(
+            TransportationOption.destination_id == dest.id
+        )
+    )
+    existing_trans = {(row[0], row[1]) for row in existing_trans_res.all()}
+    for opt in d_data.get("transportation_options", []):
+        pair = (opt["transport_type"], opt["origin_name"])
+        if pair not in existing_trans:
+            await transit_repo.create_transportation_option(
+                destination_id=dest.id,
+                transport_type=opt["transport_type"],
+                origin_name=opt["origin_name"],
+                destination_name=opt["destination_name"],
+                duration_hours=opt["duration_hours"],
+                cost_estimate=opt["cost_estimate"],
+                frequency=opt.get("frequency", "Daily"),
+                operator_name=opt.get("operator_name"),
+                booking_tips=opt.get("booking_tips"),
+                source="seed_verified",
+                source_id=f"transport/{dest.slug}/{opt['transport_type'].lower().replace(' ', '_')}",
+            )
+            existing_trans.add(pair)
+            stats["transportation_options"] += 1
+
+    # 9. Travel Routes
+    existing_routes_res = await session.execute(
+        select(TravelRoute.route_name).where(TravelRoute.destination_id == dest.id)
+    )
+    existing_routes = set(existing_routes_res.scalars().all())
+    for tr in d_data.get("travel_routes", []):
+        if tr["route_name"] not in existing_routes:
+            await transit_repo.create_travel_route(
+                destination_id=dest.id,
+                origin_city_id=city_entity.id if city_entity else None,
+                route_name=tr["route_name"],
+                mode=tr.get("mode", "Road"),
+                distance_km=tr["distance_km"],
+                typical_duration_hours=tr["typical_duration_hours"],
+                road_condition=tr.get("road_condition", ""),
+                scenic_rating=tr.get("scenic_rating", 9),
+                seasonal_notes=tr.get("seasonal_notes"),
+                source="seed_verified",
+                source_id=f"route/{dest.slug}/{tr['route_name'][:20].lower().replace(' ', '_')}",
+            )
+            existing_routes.add(tr["route_name"])
+            stats["travel_routes"] += 1
 
 
 async def main():

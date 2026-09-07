@@ -9,6 +9,12 @@ from backend.app.travel.services.itinerary_engine import (
 from backend.app.travel.services.sync_service import SyncService
 from backend.app.travel.services.travel_provider_service import TravelProviderService
 from backend.app.travel.services.trip_service import TripService
+from backend.app.travel.services.destination_service import DestinationService
+from backend.app.travel.services.hotel_service import HotelService
+from backend.app.travel.services.flight_service import FlightService
+from backend.app.travel.services.activity_service import ActivityService
+from backend.app.travel.services.place_service import PlaceService
+from backend.app.travel.services.travel_search_service import TravelSearchService
 
 __all__ = [
     "CatalogService",
@@ -18,4 +24,10 @@ __all__ = [
     "TripService",
     "ItineraryGenerationEngine",
     "itinerary_engine",
+    "DestinationService",
+    "HotelService",
+    "FlightService",
+    "ActivityService",
+    "PlaceService",
+    "TravelSearchService",
 ]

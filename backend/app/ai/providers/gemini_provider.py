@@ -45,6 +45,7 @@ class GeminiProvider(BaseAIProvider):
         system_prompt: Optional[str] = None,
         model: Optional[str] = None,
         temperature: Optional[float] = None,
+        tools: Optional[List[Dict[str, Any]]] = None,
     ) -> AIResponse:
         """Call Gemini generateContent endpoint."""
         if not self.api_key:
@@ -62,6 +63,16 @@ class GeminiProvider(BaseAIProvider):
         if system_instruction:
             payload["systemInstruction"] = system_instruction
 
+        if tools:
+            func_decls = []
+            for t in tools:
+                if "function" in t:
+                    func_decls.append(t["function"])
+                elif "name" in t:
+                    func_decls.append(t)
+            if func_decls:
+                payload["tools"] = [{"functionDeclarations": func_decls}]
+
         url = f"{self.BASE_URL}/models/{selected_model}:generateContent"
         headers = {
             "x-goog-api-key": self.api_key,
@@ -78,7 +89,18 @@ class GeminiProvider(BaseAIProvider):
             data = response.json()
             try:
                 candidate = data["candidates"][0]
-                text = candidate["content"]["parts"][0]["text"]
+                content_parts = candidate.get("content", {}).get("parts", [])
+                text = ""
+                tool_calls = []
+                for part in content_parts:
+                    if "text" in part:
+                        text += part["text"]
+                    if "functionCall" in part:
+                        fc = part["functionCall"]
+                        tool_calls.append({
+                            "name": fc.get("name"),
+                            "arguments": fc.get("args", {}),
+                        })
                 finish_reason = candidate.get("finishReason", "stop")
                 usage = data.get("usageMetadata", {})
                 token_count = usage.get("totalTokenCount", len(text.split()))
@@ -88,6 +110,7 @@ class GeminiProvider(BaseAIProvider):
                     model_name=selected_model,
                     token_count=token_count,
                     finish_reason=finish_reason.lower(),
+                    tool_calls=tool_calls if tool_calls else None,
                     metadata={"usage": usage, "provider": "gemini"},
                 )
             except (KeyError, IndexError) as exc:
@@ -99,6 +122,7 @@ class GeminiProvider(BaseAIProvider):
         system_prompt: Optional[str] = None,
         model: Optional[str] = None,
         temperature: Optional[float] = None,
+        tools: Optional[List[Dict[str, Any]]] = None,
     ) -> AsyncIterator[str]:
         """Stream response chunks from Gemini streamGenerateContent endpoint."""
         if not self.api_key:

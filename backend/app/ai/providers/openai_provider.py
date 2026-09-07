@@ -36,6 +36,7 @@ class OpenAIProvider(BaseAIProvider):
         system_prompt: Optional[str] = None,
         model: Optional[str] = None,
         temperature: Optional[float] = None,
+        tools: Optional[List[Dict[str, Any]]] = None,
     ) -> AIResponse:
         """Call OpenAI chat completions endpoint."""
         if not self.api_key:
@@ -44,11 +45,28 @@ class OpenAIProvider(BaseAIProvider):
         selected_model = model or self.default_model
         formatted_messages = self._prepare_messages(messages, system_prompt)
 
-        payload = {
+        payload: Dict[str, Any] = {
             "model": selected_model,
             "messages": formatted_messages,
             "temperature": temperature if temperature is not None else self.default_temperature,
         }
+
+        if tools:
+            openai_tools = []
+            for t in tools:
+                if "type" in t and t["type"] == "function":
+                    openai_tools.append(t)
+                else:
+                    openai_tools.append({
+                        "type": "function",
+                        "function": {
+                            "name": t.get("name"),
+                            "description": t.get("description"),
+                            "parameters": t.get("parameters", {}),
+                        }
+                    })
+            if openai_tools:
+                payload["tools"] = openai_tools
 
         headers = {
             "Authorization": f"Bearer {self.api_key}",
@@ -67,8 +85,25 @@ class OpenAIProvider(BaseAIProvider):
             data = response.json()
             try:
                 choice = data["choices"][0]
-                text = choice["message"]["content"]
+                text = choice["message"].get("content") or ""
                 finish_reason = choice.get("finish_reason", "stop")
+                raw_tool_calls = choice["message"].get("tool_calls")
+                tool_calls = None
+                if raw_tool_calls:
+                    tool_calls = []
+                    for tc in raw_tool_calls:
+                        func = tc.get("function", {})
+                        arguments = func.get("arguments", {})
+                        if isinstance(arguments, str):
+                            try:
+                                arguments = json.loads(arguments)
+                            except Exception:
+                                pass
+                        tool_calls.append({
+                            "id": tc.get("id"),
+                            "name": func.get("name"),
+                            "arguments": arguments,
+                        })
                 usage = data.get("usage", {})
                 token_count = usage.get("total_tokens", len(text.split()))
 
@@ -77,6 +112,7 @@ class OpenAIProvider(BaseAIProvider):
                     model_name=selected_model,
                     token_count=token_count,
                     finish_reason=finish_reason,
+                    tool_calls=tool_calls,
                     metadata={"usage": usage, "provider": "openai"},
                 )
             except (KeyError, IndexError) as exc:
@@ -88,6 +124,7 @@ class OpenAIProvider(BaseAIProvider):
         system_prompt: Optional[str] = None,
         model: Optional[str] = None,
         temperature: Optional[float] = None,
+        tools: Optional[List[Dict[str, Any]]] = None,
     ) -> AsyncIterator[str]:
         """Stream response tokens from OpenAI chat completions endpoint."""
         if not self.api_key:

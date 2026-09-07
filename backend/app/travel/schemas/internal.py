@@ -147,3 +147,36 @@ class TravelAirport(BaseModel):
     longitude: Optional[float] = None
     distance_km: Optional[float] = None
     provider: str = Field(..., description="E.g. 'amadeus', 'local_db'")
+
+
+class TravelReviewSummary(BaseModel):
+    """Aggregated review metrics."""
+    average_rating: Optional[float] = None
+    total_reviews: Optional[int] = None
+    provider: Optional[str] = None
+    rating_distribution: Dict[str, int] = Field(default_factory=dict)
+    highlights: List[str] = Field(default_factory=list)
+
+
+class TravelDestination(BaseModel):
+    """Provider-independent destination representation."""
+    model_config = ConfigDict(from_attributes=True)
+
+    slug: str
+    name: str
+    state: Optional[str] = None
+    country: Optional[str] = "India"
+    country_code: Optional[str] = "IN"
+    region: Optional[str] = None
+    category: Optional[str] = None
+    description: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    best_season: Optional[str] = None
+    budget_tier: Optional[str] = None
+    trust_score: Optional[int] = 85
+    image_url: Optional[str] = None
+    tags: List[str] = Field(default_factory=list)
+    provider: str = Field("local_db", description="E.g. 'local_db', 'opentripmap', 'nominatim'")
+    provider_id: Optional[str] = None
+    metadata: Dict[str, Any] = Field(default_factory=dict)

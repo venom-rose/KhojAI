@@ -56,7 +56,14 @@ class ToolSelector:
             elif tool_name == "calculate_route":
                 args = {"stops": [dest, "Jaipur", "Jodhpur"]}
             elif tool_name == "create_itinerary":
-                args = {"destination": dest, "days": days, "travel_style": "slow travel"}
+                args = {
+                    "destination": dest,
+                    "days": days,
+                    "travel_style": analysis.entities.get("travel_style", "slow travel"),
+                    "budget": analysis.entities.get("budget", "moderate"),
+                    "traveler_count": analysis.entities.get("traveler_count", 1),
+                    "interests": analysis.entities.get("interests", []),
+                }
             elif tool_name == "search_local_database":
                 args = {"query": user_query, "limit_per_category": 3}
             elif tool_name == "get_user_preferences":

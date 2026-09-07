@@ -10,6 +10,7 @@ class AIResponse:
     model_name: str
     token_count: Optional[int] = None
     finish_reason: str = "stop"
+    tool_calls: Optional[List[Dict[str, Any]]] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
 
 
@@ -23,6 +24,7 @@ class BaseAIProvider(ABC):
         system_prompt: Optional[str] = None,
         model: Optional[str] = None,
         temperature: Optional[float] = None,
+        tools: Optional[List[Dict[str, Any]]] = None,
     ) -> AIResponse:
         """Generate a complete, non-streaming AI response.
         
@@ -31,9 +33,10 @@ class BaseAIProvider(ABC):
             system_prompt: Optional system-level prompt guiding tone and persona.
             model: Optional model override.
             temperature: Sampling temperature between 0.0 and 1.0.
+            tools: Optional list of tool/function specifications for function calling.
             
         Returns:
-            AIResponse object containing text, model info, and metadata.
+            AIResponse object containing text, model info, tool calls, and metadata.
         """
         pass
 
@@ -44,6 +47,7 @@ class BaseAIProvider(ABC):
         system_prompt: Optional[str] = None,
         model: Optional[str] = None,
         temperature: Optional[float] = None,
+        tools: Optional[List[Dict[str, Any]]] = None,
     ) -> AsyncIterator[str]:
         """Stream response tokens asynchronously as they are generated.
         
@@ -52,6 +56,7 @@ class BaseAIProvider(ABC):
             system_prompt: Optional system-level prompt.
             model: Optional model override.
             temperature: Sampling temperature.
+            tools: Optional tool definitions.
             
         Yields:
             Incremental string tokens/chunks.

@@ -55,9 +55,9 @@ class SearchDestinationsTool(BaseTool):
             filters = [
                 Destination.name.ilike(f"%{query_term}%"),
                 Destination.state.ilike(f"%{query_term}%"),
-                Destination.country.ilike(f"%{query_term}%"),
+                Destination.region.ilike(f"%{query_term}%"),
                 Destination.description.ilike(f"%{query_term}%"),
-                Destination.short_description.ilike(f"%{query_term}%"),
+                Destination.category.ilike(f"%{query_term}%"),
             ]
             stmt = stmt.where(or_(*filters))
 
@@ -65,11 +65,11 @@ class SearchDestinationsTool(BaseTool):
                 stmt = stmt.where(
                     or_(
                         Destination.category.ilike(f"%{category}%"),
-                        Destination.tags.any(category.lower()),
+                        Destination.region.ilike(f"%{category}%"),
                     )
                 )
 
-            stmt = stmt.order_by(Destination.rating.desc().nullslast()).limit(limit)
+            stmt = stmt.order_by(Destination.trust_score.desc().nullslast()).limit(limit)
             res = await session.execute(stmt)
             destinations = res.scalars().all()
 
@@ -79,13 +79,12 @@ class SearchDestinationsTool(BaseTool):
                     "id": str(d.id),
                     "name": d.name,
                     "state": d.state,
-                    "country": d.country,
-                    "description": d.short_description or d.description[:200] if d.description else None,
+                    "region": d.region,
                     "category": d.category,
-                    "tags": d.tags or [],
-                    "best_time_to_visit": d.best_time_to_visit,
-                    "budget_tier": d.budget_tier,
-                    "rating": float(d.rating) if d.rating else None,
+                    "best_season": d.best_season,
+                    "budget": d.budget,
+                    "trust_score": d.trust_score,
+                    "description": d.description[:300] if d.description else None,
                     "latitude": float(d.latitude) if d.latitude else None,
                     "longitude": float(d.longitude) if d.longitude else None,
                 })
@@ -133,18 +132,23 @@ class SearchAttractionsTool(BaseTool):
         dest_term = destination.strip()
 
         async with async_session_factory() as session:
-            stmt = select(Attraction).join(Attraction.city, isouter=True)
+            stmt = (
+                select(Attraction)
+                .join(Attraction.city, isouter=True)
+                .join(Attraction.destination, isouter=True)
+            )
             stmt = stmt.where(
                 or_(
                     Attraction.name.ilike(f"%{dest_term}%"),
-                    Attraction.address.ilike(f"%{dest_term}%"),
+                    Attraction.description.ilike(f"%{dest_term}%"),
                     City.name.ilike(f"%{dest_term}%"),
+                    Destination.name.ilike(f"%{dest_term}%"),
                 )
             )
             if category:
                 stmt = stmt.where(Attraction.category.ilike(f"%{category}%"))
 
-            stmt = stmt.order_by(Attraction.rating.desc().nullslast()).limit(limit)
+            stmt = stmt.order_by(Attraction.name.asc()).limit(limit)
             res = await session.execute(stmt)
             attractions = res.scalars().all()
 
@@ -154,13 +158,14 @@ class SearchAttractionsTool(BaseTool):
                     "id": str(a.id),
                     "name": a.name,
                     "city": a.city.name if a.city else None,
+                    "destination": a.destination.name if a.destination else None,
                     "category": a.category,
                     "description": a.description,
-                    "rating": float(a.rating) if a.rating else None,
-                    "estimated_duration_hours": float(a.estimated_duration_hours) if a.estimated_duration_hours else None,
-                    "admission_fee_estimate": float(a.admission_fee) if a.admission_fee else None,
-                    "fee_currency": a.admission_currency or "INR",
-                    "opening_hours_note": "Reference hours only; verify locally before visiting." if a.opening_hours else None,
+                    "timings": a.timings,
+                    "entry_fee": a.entry_fee,
+                    "difficulty": a.difficulty,
+                    "recommended_duration_mins": a.recommended_duration_mins,
+                    "tags": a.tags or [],
                     "latitude": float(a.latitude) if a.latitude else None,
                     "longitude": float(a.longitude) if a.longitude else None,
                 })
@@ -236,12 +241,18 @@ class SearchActivitiesTool(BaseTool):
         # 2. Query Local Database activities
         if not activities:
             async with async_session_factory() as session:
-                stmt = select(Activity).join(Activity.city, isouter=True)
+                stmt = (
+                    select(Activity)
+                    .join(Activity.city, isouter=True)
+                    .join(Activity.destination, isouter=True)
+                )
                 stmt = stmt.where(
                     or_(
-                        Activity.name.ilike(f"%{destination}%"),
+                        Activity.title.ilike(f"%{destination}%"),
+                        Activity.activity_type.ilike(f"%{destination}%"),
                         Activity.description.ilike(f"%{destination}%"),
                         City.name.ilike(f"%{destination}%"),
+                        Destination.name.ilike(f"%{destination}%"),
                     )
                 ).limit(limit)
                 res = await session.execute(stmt)
@@ -249,14 +260,16 @@ class SearchActivitiesTool(BaseTool):
                 activities = [
                     {
                         "id": str(act.id),
-                        "name": act.name,
+                        "title": act.title,
+                        "name": act.title,
+                        "activity_type": act.activity_type,
                         "description": act.description,
-                        "category": act.category,
                         "duration_hours": float(act.duration_hours) if act.duration_hours else None,
-                        "price_estimate": float(act.price_estimate) if act.price_estimate else None,
-                        "currency": act.currency or "INR",
-                        "booking_link": act.booking_url,
-                        "rating": float(act.rating) if act.rating else None,
+                        "price_range": act.price_range,
+                        "seasonality": act.seasonality,
+                        "guide_required": act.guide_required,
+                        "latitude": float(act.latitude) if act.latitude else None,
+                        "longitude": float(act.longitude) if act.longitude else None,
                     }
                     for act in db_activities
                 ]
@@ -283,7 +296,7 @@ class SearchLocalDatabaseTool(BaseTool):
 
     name = "search_local_database"
     description = (
-        "Search across all local travel tables (destinations, attractions, hotels, restaurants, tips) "
+        "Search across all local travel tables (destinations, attractions, hotels, restaurants) "
         "for comprehensive offline-verified travel knowledge."
     )
     parameters = {
@@ -322,13 +335,14 @@ class SearchLocalDatabaseTool(BaseTool):
                     or_(
                         Destination.name.ilike(f"%{query_term}%"),
                         Destination.state.ilike(f"%{query_term}%"),
+                        Destination.region.ilike(f"%{query_term}%"),
                         Destination.description.ilike(f"%{query_term}%"),
                     ),
                 )
                 .limit(limit)
             )
             results["destinations"] = [
-                {"name": d.name, "state": d.state, "category": d.category, "rating": float(d.rating) if d.rating else None}
+                {"name": d.name, "state": d.state, "region": d.region, "category": d.category, "budget": d.budget}
                 for d in d_res.scalars().all()
             ]
 
@@ -338,13 +352,14 @@ class SearchLocalDatabaseTool(BaseTool):
                 .where(
                     or_(
                         Attraction.name.ilike(f"%{query_term}%"),
+                        Attraction.category.ilike(f"%{query_term}%"),
                         Attraction.description.ilike(f"%{query_term}%"),
                     )
                 )
                 .limit(limit)
             )
             results["attractions"] = [
-                {"name": a.name, "category": a.category, "rating": float(a.rating) if a.rating else None}
+                {"name": a.name, "category": a.category, "timings": a.timings, "entry_fee": a.entry_fee}
                 for a in a_res.scalars().all()
             ]
 
@@ -354,13 +369,14 @@ class SearchLocalDatabaseTool(BaseTool):
                 .where(
                     or_(
                         Hotel.name.ilike(f"%{query_term}%"),
-                        Hotel.description.ilike(f"%{query_term}%"),
+                        Hotel.address.ilike(f"%{query_term}%"),
+                        Hotel.stay_type.ilike(f"%{query_term}%"),
                     )
                 )
                 .limit(limit)
             )
             results["hotels"] = [
-                {"name": h.name, "rating": float(h.rating) if h.rating else None, "price_tier": h.price_range}
+                {"name": h.name, "stay_type": h.stay_type, "rating": float(h.rating) if h.rating else None, "price_level": h.price_level}
                 for h in h_res.scalars().all()
             ]
 
@@ -370,13 +386,14 @@ class SearchLocalDatabaseTool(BaseTool):
                 .where(
                     or_(
                         Restaurant.name.ilike(f"%{query_term}%"),
-                        Restaurant.cuisine_types.any(query_term.lower()),
+                        Restaurant.cuisine_type.ilike(f"%{query_term}%"),
+                        Restaurant.address.ilike(f"%{query_term}%"),
                     )
                 )
                 .limit(limit)
             )
             results["restaurants"] = [
-                {"name": r.name, "rating": float(r.rating) if r.rating else None, "price_tier": r.price_range}
+                {"name": r.name, "cuisine_type": r.cuisine_type, "rating": float(r.rating) if r.rating else None, "price_range": r.price_range}
                 for r in r_res.scalars().all()
             ]
 
