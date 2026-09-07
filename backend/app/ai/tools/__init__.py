@@ -24,6 +24,7 @@ from backend.app.ai.tools.geo_weather_tools import (
 )
 from backend.app.ai.tools.trip_tools import (
     GetUserPreferencesTool,
+    GetPersonalizedRecommendationsTool,
     CreateItineraryTool,
     SaveTripTool,
     RetrieveTripTool,
@@ -47,6 +48,7 @@ def register_all_tools(registry: ToolRegistry) -> None:
         CalculateRouteTool(),
         SearchLocalDatabaseTool(),
         GetUserPreferencesTool(),
+        GetPersonalizedRecommendationsTool(),
         CreateItineraryTool(),
         SaveTripTool(),
         RetrieveTripTool(),
@@ -80,7 +82,9 @@ __all__ = [
     "CalculateRouteTool",
     "SearchLocalDatabaseTool",
     "GetUserPreferencesTool",
+    "GetPersonalizedRecommendationsTool",
     "CreateItineraryTool",
     "SaveTripTool",
     "RetrieveTripTool",
 ]
+

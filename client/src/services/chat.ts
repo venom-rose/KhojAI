@@ -1,6 +1,134 @@
 import { apiClient, API_BASE_URL } from "./apiClient";
 import { authService } from "./auth";
 
+export type StructuredCardType =
+  | "text"
+  | "destination"
+  | "hotel"
+  | "activity"
+  | "flight"
+  | "itinerary"
+  | "map"
+  | "error";
+
+export interface DestinationCardData {
+  id: string;
+  name: string;
+  state: string;
+  region: string;
+  category: string;
+  best_season: string;
+  budget: string;
+  trust_score: number;
+  description?: string;
+  latitude?: number;
+  longitude?: number;
+  image?: string;
+  explanation?: string;
+  match_breakdown?: Record<string, number>;
+}
+
+export interface HotelCardData {
+  id: string;
+  name: string;
+  city?: string;
+  price_tier?: string;
+  price_per_night_inr: number;
+  rating?: number;
+  stay_type?: string;
+  address?: string;
+  amenities?: string[];
+  latitude?: number;
+  longitude?: number;
+  explanation?: string;
+}
+
+export interface ActivityCardData {
+  id: string;
+  title: string;
+  destination?: string;
+  category?: string;
+  duration_hours?: number;
+  price_inr?: number;
+  recommended_timing?: string;
+  description?: string;
+  requires_guide?: boolean;
+  is_attraction?: boolean;
+  explanation?: string;
+}
+
+export interface FlightCardData {
+  airline: string;
+  flight_number?: string;
+  origin: string;
+  destination: string;
+  departure_time: string;
+  arrival_time: string;
+  duration: string;
+  stops: number;
+  price_inr: number;
+  is_estimate?: boolean;
+}
+
+export interface ItineraryCardData {
+  summary: string;
+  destination: string;
+  duration_days: number;
+  pacing_rating: string;
+  estimated_cost?: {
+    total_estimated_inr?: number;
+    per_person_inr?: number;
+    accommodation_inr?: number;
+    activities_and_admission_inr?: number;
+    local_transport_inr?: number;
+    food_and_dining_inr?: number;
+    contingency_inr?: number;
+  };
+  days: Array<{
+    day_number: number;
+    title: string;
+    neighborhood_cluster?: string;
+    morning?: { time_window?: string; theme?: string; activities?: any[] };
+    afternoon?: { time_window?: string; theme?: string; activities?: any[] };
+    evening?: { time_window?: string; theme?: string; activities?: any[] };
+  }>;
+  curator_notes?: string[];
+}
+
+export interface MapCardData {
+  title: string;
+  latitude: number;
+  longitude: number;
+  description?: string;
+  zoom?: number;
+}
+
+export interface ErrorCardData {
+  tool?: string;
+  message: string;
+  warning?: string;
+}
+
+export interface StructuredCard {
+  type: StructuredCardType;
+  data:
+    | DestinationCardData
+    | HotelCardData
+    | ActivityCardData
+    | FlightCardData
+    | ItineraryCardData
+    | MapCardData
+    | ErrorCardData
+    | any;
+}
+
+export interface AgentActivityEvent {
+  intent?: string;
+  tools_called?: string[];
+  tools_count?: number;
+  structured_cards?: StructuredCard[];
+}
+
 export interface ChatMessage {
   id: string;
   conversation_id: string;
@@ -8,7 +136,15 @@ export interface ChatMessage {
   content: string;
   model_name?: string;
   token_count?: number;
-  metadata_json?: Record<string, any>;
+  metadata_json?: {
+    streamed?: boolean;
+    provider?: string;
+    intent?: string;
+    tools_used?: string[];
+    structured_cards?: StructuredCard[];
+    citations?: string[];
+    [key: string]: any;
+  };
   created_at: string;
 }
 
@@ -94,7 +230,14 @@ export const chatService = {
     content: string,
     callbacks: {
       onToken: (token: string) => void;
-      onDone: (data: { message_id: string; content: string }) => void;
+      onActivity?: (activity: AgentActivityEvent) => void;
+      onDone: (data: {
+        message_id: string;
+        content: string;
+        structured_cards?: StructuredCard[];
+        tools_used?: string[];
+        intent?: string;
+      }) => void;
       onError: (err: string) => void;
     },
     model?: string
@@ -142,7 +285,17 @@ export const chatService = {
 
         for (let i = 0; i < lines.length; i++) {
           const line = lines[i].trim();
-          if (line.startsWith("event: token")) {
+          if (line.startsWith("event: agent_activity")) {
+            const nextLine = lines[++i]?.trim();
+            if (nextLine?.startsWith("data: ")) {
+              try {
+                const parsed = JSON.parse(nextLine.slice(6));
+                if (callbacks.onActivity) callbacks.onActivity(parsed);
+              } catch {
+                // Ignore
+              }
+            }
+          } else if (line.startsWith("event: token")) {
             const nextLine = lines[++i]?.trim();
             if (nextLine?.startsWith("data: ")) {
               try {

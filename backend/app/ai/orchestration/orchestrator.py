@@ -146,6 +146,10 @@ class TravelOrchestrator:
         total_ms = round((time.perf_counter() - start_time) * 1000, 2)
         is_fully_live = bool(tool_results) and all(r.is_live_data for r in tool_results)
 
+        # 6. Normalize tool results into unified structured travel cards
+        from backend.app.ai.orchestration.response_normalizer import ResponseNormalizer
+        structured_cards = ResponseNormalizer.normalize_tool_results(tool_results)
+
         return OrchestrationResult(
             final_content=ai_res.content,
             intent=analysis.intent,
@@ -158,6 +162,7 @@ class TravelOrchestrator:
                 **ai_res.metadata,
                 "entities": analysis.entities,
                 "token_count": ai_res.token_count,
+                "structured_cards": structured_cards,
             },
         )
 
@@ -190,11 +195,16 @@ class TravelOrchestrator:
             conversation_history=conversation_history,
         )
 
-        # 5. Stream LLM tokens
+        # 5. Normalize structured cards from tool results
+        from backend.app.ai.orchestration.response_normalizer import ResponseNormalizer
+        structured_cards = ResponseNormalizer.normalize_tool_results(tool_results)
+
+        # 6. Stream LLM tokens
         meta_event = {
             "intent": analysis.intent.value,
             "tools_called": tools_called,
             "tools_count": len(tools_called),
+            "structured_cards": structured_cards,
         }
         first = True
 

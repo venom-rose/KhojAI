@@ -89,10 +89,27 @@ class UserService:
         user.travel_preferences = current_prefs
         flag_modified(user, "travel_preferences")
 
+        # Synchronize with UserTravelPreference
+        try:
+            from backend.app.travel.repositories.trip_repo import TripRepository
+            trip_repo = TripRepository(db)
+            sync_fields = {}
+            if "budget" in update_data and update_data["budget"]:
+                sync_fields["budget_range"] = update_data["budget"]
+            if "interests" in update_data and update_data["interests"]:
+                sync_fields["interests"] = update_data["interests"]
+            if "style" in update_data and update_data["style"]:
+                sync_fields["travel_style"] = update_data["style"]
+            if sync_fields:
+                await trip_repo.upsert_user_preference(user_id=user.id, **sync_fields)
+        except Exception:
+            pass
+
         await db.commit()
         await db.refresh(user)
 
         return await UserService.get_user_profile(db, user)
+
 
     @staticmethod
     async def delete_user_account(db: AsyncSession, user: User) -> bool:

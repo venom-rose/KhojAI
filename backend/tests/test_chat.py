@@ -288,3 +288,40 @@ async def test_nonexistent_conversation_returns_404(client: AsyncClient):
     random_id = uuid.uuid4()
     res = await client.get(f"/api/v1/chat/conversations/{random_id}")
     assert res.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_chat_ai_agent_structured_cards_and_tools(client: AsyncClient):
+    """Verify tool-using AI travel agent generates structured cards in chat responses."""
+    # 1. Create conversation
+    create_res = await client.post(
+        "/api/v1/chat/conversations",
+        json={"title": "Jaipur Hotels and Places Inquiry"},
+    )
+    assert create_res.status_code == 201
+    conv_id = create_res.json()["id"]
+
+    # 2. Ask for hotels in Jaipur (triggers search_hotels tool)
+    msg_res = await client.post(
+        f"/api/v1/chat/conversations/{conv_id}/messages",
+        json={"content": "Find hotels in Jaipur.", "stream": False},
+    )
+    assert msg_res.status_code == 200
+    reply = msg_res.json()
+    assert reply["sender_type"] == "assistant"
+    meta = reply.get("metadata_json", {})
+    assert "tools_used" in meta
+    assert "structured_cards" in meta
+    assert isinstance(meta["structured_cards"], list)
+
+    # 3. Test streaming SSE includes structured_cards and agent_activity
+    stream_res = await client.post(
+        f"/api/v1/chat/conversations/{conv_id}/messages?stream=true",
+        json={"content": "Best places to visit in India?"},
+    )
+    assert stream_res.status_code == 200
+    text = stream_res.text
+    assert "event: token" in text
+    assert "event: done" in text
+    assert "event: agent_activity" in text
+

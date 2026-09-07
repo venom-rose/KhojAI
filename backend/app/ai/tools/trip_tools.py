@@ -41,23 +41,12 @@ class GetUserPreferencesTool(BaseTool):
         if user_id:
             try:
                 uid = uuid.UUID(user_id)
-                async with async_session_factory() as session:
-                    # Check User table preferences
-                    u_stmt = select(User).where(User.id == uid)
-                    u_res = await session.execute(u_stmt)
-                    user = u_res.scalar_one_or_none()
-                    if user and user.travel_preferences:
-                        prefs.update(user.travel_preferences)
-
-                    # Check UserTravelPreference table
-                    utp_stmt = select(UserTravelPreference).where(UserTravelPreference.user_id == uid)
-                    utp_res = await session.execute(utp_stmt)
-                    utp = utp_res.scalar_one_or_none()
-                    if utp:
-                        prefs["budget_tier"] = utp.budget_tier or prefs["budget_tier"]
-                        prefs["pace"] = utp.pace_preference or prefs["pace"]
-                        if utp.preferred_activities:
-                            prefs["preferred_activities"] = utp.preferred_activities
+                provided_session = kwargs.get("db") or kwargs.get("session")
+                if provided_session:
+                    await self._load_preferences(provided_session, uid, prefs)
+                else:
+                    async with async_session_factory() as session:
+                        await self._load_preferences(session, uid, prefs)
             except Exception as exc:
                 logger.warning(f"Failed to lookup specific user preferences ({exc}); using defaults.")
 
@@ -70,6 +59,104 @@ class GetUserPreferencesTool(BaseTool):
             is_live_data=True,
             metadata={"user_id": user_id},
         )
+
+    async def _load_preferences(self, session: AsyncSession, uid: uuid.UUID, prefs: dict) -> None:
+        u_stmt = select(User).where(User.id == uid)
+        u_res = await session.execute(u_stmt)
+        user = u_res.scalar_one_or_none()
+        if user and user.travel_preferences:
+            prefs.update(user.travel_preferences)
+
+        utp_stmt = select(UserTravelPreference).where(UserTravelPreference.user_id == uid)
+        utp_res = await session.execute(utp_stmt)
+        utp = utp_res.scalar_one_or_none()
+        if utp:
+            prefs["budget_range"] = utp.budget_range
+            prefs["budget_tier"] = utp.budget_preference or prefs["budget_tier"]
+            prefs["pace"] = utp.preferred_pace or prefs["pace"]
+            prefs["travel_style"] = utp.travel_style
+            prefs["interests"] = utp.interests
+            prefs["preferred_destinations"] = utp.preferred_destinations
+            prefs["preferred_accommodation"] = utp.preferred_accommodation
+            prefs["preferred_activities"] = utp.preferred_activities
+            prefs["food_preferences"] = utp.food_preferences
+            prefs["transportation_preferences"] = utp.transportation_preferences
+            prefs["preferred_trip_duration"] = utp.preferred_trip_duration
+
+
+class GetPersonalizedRecommendationsTool(BaseTool):
+    """Tool to retrieve explainable, personalized recommendations across destinations, hotels, activities, restaurants, and itineraries."""
+
+    name = "get_personalized_recommendations"
+    description = (
+        "Get personalized travel recommendations scored against traveler preferences for destinations, "
+        "hotels, activities, restaurants, or itineraries with transparent, explainable justifications."
+    )
+    parameters = {
+        "type": "object",
+        "properties": {
+            "category": {
+                "type": "string",
+                "description": "Category to recommend: 'all', 'destinations', 'hotels', 'activities', 'restaurants', 'itineraries'.",
+                "enum": ["all", "destinations", "hotels", "activities", "restaurants", "itineraries"],
+            },
+            "destination": {
+                "type": "string",
+                "description": "Optional destination name to scope the recommendations (e.g. 'Jaipur', 'Ziro').",
+            },
+            "user_id": {
+                "type": "string",
+                "description": "Optional UUID of the user. If omitted, standard defaults are used.",
+            },
+            "limit": {
+                "type": "integer",
+                "description": "Maximum number of recommendations to return (default: 5).",
+            },
+        },
+    }
+
+    async def execute(
+        self,
+        category: str = "all",
+        destination: Optional[str] = None,
+        user_id: Optional[str] = None,
+        limit: int = 5,
+        **kwargs,
+    ) -> ToolResult:
+        from backend.app.travel.services.recommendation_engine import recommendation_engine
+
+        uid = uuid.UUID(user_id) if user_id else uuid.UUID("00000000-0000-0000-0000-000000000000")
+        provided_session = kwargs.get("db") or kwargs.get("session")
+        if provided_session:
+            recs = await recommendation_engine.get_personalized_recommendations(
+                session=provided_session,
+                user_id=uid,
+                category=category,
+                destination_name=destination,
+                limit=limit,
+            )
+        else:
+            async with async_session_factory() as session:
+                recs = await recommendation_engine.get_personalized_recommendations(
+                    session=session,
+                    user_id=uid,
+                    category=category,
+                    destination_name=destination,
+                    limit=limit,
+                )
+        recs_data = [r.model_dump() for r in recs]
+
+        return ToolResult(
+            tool_name=self.name,
+            success=True,
+            data=recs_data,
+            message=f"Retrieved {len(recs_data)} personalized recommendations with explainable scores.",
+            provenance=DataProvenance.LOCAL_DATABASE,
+            is_live_data=True,
+            metadata={"category": category, "destination": destination, "count": len(recs_data)},
+        )
+
+
 
 
 class CreateItineraryTool(BaseTool):

@@ -9,6 +9,7 @@ logger = logging.getLogger(__name__)
 
 class UserIntent(str, Enum):
     DESTINATION_DISCOVERY = "DESTINATION_DISCOVERY"
+    RECOMMENDATION_SEARCH = "RECOMMENDATION_SEARCH"
     HOTEL_SEARCH = "HOTEL_SEARCH"
     FLIGHT_SEARCH = "FLIGHT_SEARCH"
     ITINERARY_PLANNING = "ITINERARY_PLANNING"
@@ -18,6 +19,7 @@ class UserIntent(str, Enum):
     RESTAURANT_SEARCH = "RESTAURANT_SEARCH"
     TRIP_MANAGEMENT = "TRIP_MANAGEMENT"
     GENERAL_TRAVEL_CHAT = "GENERAL_TRAVEL_CHAT"
+
 
 
 @dataclass
@@ -70,6 +72,24 @@ class IntentDetector:
 
         # 4. Check specific intents
 
+        # Personalized Recommendations (e.g. "What should I visit based on my preferences?", "Recommend hotels for me")
+        if any(w in q for w in ["for me", "my preferences", "recommend for me", "recommendations for me", "personalized", "suits me", "my travel style"]):
+            cat = "all"
+            if any(w in q for w in ["hotel", "hotels", "stay", "stays", "resort"]):
+                cat = "hotels"
+            elif any(w in q for w in ["restaurant", "restaurants", "food", "dining", "eat"]):
+                cat = "restaurants"
+            elif any(w in q for w in ["activity", "activities", "things to do"]):
+                cat = "activities"
+            elif any(w in q for w in ["destination", "destinations", "place", "places"]):
+                cat = "destinations"
+            entities["category"] = cat
+            return IntentAnalysis(
+                intent=UserIntent.RECOMMENDATION_SEARCH,
+                required_tools=["get_user_preferences", "get_personalized_recommendations"],
+                entities=entities,
+            )
+
         # A. Flight search (e.g. "Find me flights from Kolkata to Delhi")
         if any(w in q for w in ["flight", "flights", "fly to", "air ticket", "airline"]):
             return IntentAnalysis(
@@ -77,6 +97,7 @@ class IntentDetector:
                 required_tools=["search_flights"],
                 entities=entities,
             )
+
 
         # B. Itinerary Planning (e.g. "Plan a 5-day Rajasthan trip", "itinerary for 3 days")
         if any(w in q for w in ["plan a", "plan me", "itinerary", "day trip", "days trip", "tour plan"]) or (

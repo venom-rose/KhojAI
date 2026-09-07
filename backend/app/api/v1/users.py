@@ -68,6 +68,61 @@ async def update_my_preferences(
     )
 
 
+@router.get(
+    "/me/travel-preferences",
+    status_code=status.HTTP_200_OK,
+    summary="Get personalized travel preferences",
+    description="Retrieve comprehensive personalized traveler preferences (destinations, interests, style, budget, accommodations, activities, food, and duration).",
+)
+async def get_my_travel_preferences(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    from backend.app.travel.services.trip_service import TripService
+    service = TripService(db)
+    return await service.get_or_create_user_preferences(current_user.id)
+
+
+@router.patch(
+    "/me/travel-preferences",
+    status_code=status.HTTP_200_OK,
+    summary="Update personalized travel preferences",
+    description="Update non-sensitive travel preferences such as destinations, interests, travel style, budget range, preferred stays, activities, food, transit, and duration.",
+)
+@router.put(
+    "/me/travel-preferences",
+    status_code=status.HTTP_200_OK,
+    summary="Replace personalized travel preferences",
+    description="Replace or update personalized travel preferences.",
+)
+async def update_my_travel_preferences(
+    payload: dict,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    from backend.app.travel.schemas.trip import UserTravelPreferenceUpdate
+    from backend.app.travel.services.trip_service import TripService
+
+    # Privacy constraint: Validate no sensitive PII fields are accepted
+    forbidden_pii = {"passport", "ssn", "aadhaar", "national_id", "credit_card", "card_number", "cvv", "bank_account", "health_records", "biometric"}
+    for key in payload.keys():
+        if any(f in key.lower() for f in forbidden_pii):
+            from fastapi import HTTPException
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=f"Sensitive personal data '{key}' is strictly forbidden under privacy policy.",
+            )
+
+
+    validated_payload = UserTravelPreferenceUpdate(**payload)
+    service = TripService(db)
+    updated = await service.update_user_preferences(current_user.id, validated_payload)
+    await db.commit()
+    return updated
+
+
+
+
 @router.delete(
     "/me",
     response_model=MessageResponse,

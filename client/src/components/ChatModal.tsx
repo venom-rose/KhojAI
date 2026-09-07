@@ -3,10 +3,13 @@ import {
   chatService,
   ChatMessage,
   Conversation,
+  StructuredCard,
+  AgentActivityEvent,
 } from "@/services/chat";
 import {
   Bot,
   ChevronLeft,
+  Compass,
   Loader2,
   Plus,
   RefreshCw,
@@ -14,9 +17,11 @@ import {
   Sparkles,
   Trash2,
   User as UserIcon,
+  Wrench,
   X,
 } from "lucide-react";
 import { toast } from "sonner";
+import { TravelCardRenderer } from "@/components/TravelCards";
 
 interface ChatModalProps {
   isOpen: boolean;
@@ -33,6 +38,8 @@ export function ChatModal({ isOpen, onClose, initialConversationId, onOpenAuth }
   const [selectedModel, setSelectedModel] = useState("khojai-local-v1");
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamedText, setStreamedText] = useState("");
+  const [streamingActivity, setStreamingActivity] = useState<AgentActivityEvent | null>(null);
+  const [streamingCards, setStreamingCards] = useState<StructuredCard[]>([]);
   const [showThreadList, setShowThreadList] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -155,12 +162,21 @@ export function ChatModal({ isOpen, onClose, initialConversationId, onOpenAuth }
     setStreamedText("");
 
     // Call SSE streaming
+    setStreamingActivity(null);
+    setStreamingCards([]);
+
     chatService.streamMessage(
       currentConvId,
       userText,
       {
         onToken: (token) => {
           setStreamedText((prev) => prev + token);
+        },
+        onActivity: (activity) => {
+          setStreamingActivity(activity);
+          if (activity.structured_cards && activity.structured_cards.length > 0) {
+            setStreamingCards(activity.structured_cards);
+          }
         },
         onDone: (doneData) => {
           const assistantMsg: ChatMessage = {
@@ -169,15 +185,24 @@ export function ChatModal({ isOpen, onClose, initialConversationId, onOpenAuth }
             sender_type: "assistant",
             content: doneData.content,
             model_name: selectedModel,
+            metadata_json: {
+              intent: doneData.intent,
+              tools_used: doneData.tools_used,
+              structured_cards: doneData.structured_cards || streamingCards,
+            },
             created_at: new Date().toISOString(),
           };
           setMessages((prev) => [...prev, assistantMsg]);
           setStreamedText("");
+          setStreamingActivity(null);
+          setStreamingCards([]);
           setIsStreaming(false);
         },
         onError: (err) => {
           toast.error("Streaming interrupted: " + err);
           setIsStreaming(false);
+          setStreamingActivity(null);
+          setStreamingCards([]);
         },
       },
       selectedModel
@@ -386,7 +411,27 @@ export function ChatModal({ isOpen, onClose, initialConversationId, onOpenAuth }
                             : "border border-line bg-white text-ink"
                         }`}
                       >
+                        {/* Tool indicator tag if assistant called tools */}
+                        {msg.sender_type === "assistant" && msg.metadata_json?.tools_used && msg.metadata_json.tools_used.length > 0 && (
+                          <div className="mb-2 flex items-center gap-1.5 font-mono text-[10px] text-olive font-medium">
+                            <Compass size={12} className="text-olive" />
+                            <span>Verified via: {msg.metadata_json.tools_used.join(" · ")}</span>
+                          </div>
+                        )}
+
                         <p className="whitespace-pre-wrap">{msg.content}</p>
+
+                        {/* Structured Travel Results Cards */}
+                        {msg.sender_type === "assistant" &&
+                          msg.metadata_json?.structured_cards &&
+                          msg.metadata_json.structured_cards.length > 0 && (
+                            <div className="mt-3.5 space-y-2.5 border-t border-line/60 pt-3">
+                              {msg.metadata_json.structured_cards.map((card, cardIdx) => (
+                                <TravelCardRenderer key={cardIdx} card={card} />
+                              ))}
+                            </div>
+                          )}
+
                         {msg.metadata_json?.citations && (
                           <div className="mt-3 border-t border-line/50 pt-2 text-[10px] text-ink/50">
                             <span className="font-semibold uppercase tracking-wider text-olive">
@@ -411,8 +456,36 @@ export function ChatModal({ isOpen, onClose, initialConversationId, onOpenAuth }
                         <Bot size={15} />
                       </span>
                       <div className="max-w-[85%] rounded-[20px] border border-line bg-white p-4 text-sm leading-6 text-ink shadow-sm">
-                        <p className="whitespace-pre-wrap">{streamedText}</p>
-                        <span className="inline-block size-2 animate-bounce rounded-full bg-saffron ml-1" />
+                        {/* Real-time Tool Activity Indicator */}
+                        {streamingActivity?.tools_called && streamingActivity.tools_called.length > 0 && (
+                          <div className="mb-2.5 flex items-center gap-2 rounded-lg bg-mist px-2.5 py-1 text-[11px] font-mono text-ink/70">
+                            <Wrench size={12} className="animate-spin text-saffron" />
+                            <span>
+                              Querying live tools: {streamingActivity.tools_called.join(", ")}...
+                            </span>
+                          </div>
+                        )}
+
+                        <p className="whitespace-pre-wrap">
+                          {streamedText || (
+                            <span className="text-ink/40 italic flex items-center gap-1.5">
+                              <Loader2 size={13} className="animate-spin text-saffron" />
+                              Consulting KHOJAI travel intelligence...
+                            </span>
+                          )}
+                        </p>
+                        {streamedText && (
+                          <span className="inline-block size-2 animate-bounce rounded-full bg-saffron ml-1" />
+                        )}
+
+                        {/* Early-streamed structured cards preview if received during tool execution */}
+                        {streamingCards.length > 0 && (
+                          <div className="mt-3 space-y-2 border-t border-line/60 pt-2.5">
+                            {streamingCards.map((card, idx) => (
+                              <TravelCardRenderer key={idx} card={card} />
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
                   )}

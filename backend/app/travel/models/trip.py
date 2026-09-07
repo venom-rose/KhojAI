@@ -311,6 +311,71 @@ class UserTravelPreference(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         doc="Foreign key to user account (1:1)",
     )
 
+    # Core Travel Preferences
+    preferred_destinations: Mapped[List[str]] = mapped_column(
+        JSON,
+        default=list,
+        nullable=False,
+        doc="Target destination names or regions (e.g. ['Jaipur', 'Ziro', 'Ladakh'])",
+    )
+
+    interests: Mapped[List[str]] = mapped_column(
+        JSON,
+        default=list,
+        nullable=False,
+        doc="Specific traveler interest tags (e.g. ['History', 'Nature', 'Architecture', 'Culture'])",
+    )
+
+    travel_style: Mapped[str] = mapped_column(
+        String(50),
+        default="Balanced",
+        nullable=False,
+        doc="Primary travel style: 'Cultural', 'Adventure', 'Slow travel', 'Luxury', 'Backpacker'",
+    )
+
+    budget_range: Mapped[str] = mapped_column(
+        String(50),
+        default="moderate",
+        nullable=False,
+        doc="Budget tier: 'budget', 'moderate', 'luxury'",
+    )
+
+    preferred_accommodation: Mapped[List[str]] = mapped_column(
+        JSON,
+        default=list,
+        nullable=False,
+        doc="Preferred stay types: ['Homestay', 'Heritage Haveli', 'Eco-Lodge', 'Resort']",
+    )
+
+    preferred_activities: Mapped[List[str]] = mapped_column(
+        JSON,
+        default=list,
+        nullable=False,
+        doc="Preferred activity types: ['Guided Trek', 'Cultural Workshop', 'Food Walk', 'Sightseeing']",
+    )
+
+    food_preferences: Mapped[List[str]] = mapped_column(
+        JSON,
+        default=list,
+        nullable=False,
+        doc="Food and dietary preferences: ['Vegetarian', 'Vegan', 'Local Traditional', 'Street Food', 'Jain']",
+    )
+
+    transportation_preferences: Mapped[List[str]] = mapped_column(
+        JSON,
+        default=list,
+        nullable=False,
+        doc="Preferred transit methods: ['Train', 'Flight', 'Private Cab', 'Self-drive']",
+    )
+
+    preferred_trip_duration: Mapped[int] = mapped_column(
+        Integer,
+        default=5,
+        nullable=False,
+        doc="Preferred trip duration in days (e.g. 5)",
+    )
+
+    # Backward Compatibility & Legacy Fields
     budget_preference: Mapped[str] = mapped_column(
         String(10),
         default="₹₹",
@@ -367,4 +432,5 @@ class UserTravelPreference(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     )
 
     def __repr__(self) -> str:
-        return f"<UserTravelPreference user_id={self.user_id} pace='{self.preferred_pace}'>"
+        return f"<UserTravelPreference user_id={self.user_id} pace='{self.preferred_pace}' style='{self.travel_style}'>"
+

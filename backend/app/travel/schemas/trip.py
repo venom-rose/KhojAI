@@ -11,6 +11,18 @@ from pydantic import BaseModel, ConfigDict, Field
 # ---------------------------------------------------------
 
 class UserTravelPreferenceBase(BaseModel):
+    # Core Personalization Preferences
+    preferred_destinations: List[str] = Field(default_factory=list, description="Target destination names or regions (e.g. ['Jaipur', 'Ziro'])")
+    interests: List[str] = Field(default_factory=list, description="Specific traveler interest tags (e.g. ['History', 'Nature', 'Food'])")
+    travel_style: str = Field(default="Balanced", max_length=50, description="Primary travel style (e.g. 'Cultural', 'Adventure', 'Slow travel')")
+    budget_range: str = Field(default="moderate", max_length=50, description="Budget tier: 'budget', 'moderate', 'luxury'")
+    preferred_accommodation: List[str] = Field(default_factory=list, description="Preferred accommodations: ['Homestay', 'Heritage Haveli', 'Eco-Lodge']")
+    preferred_activities: List[str] = Field(default_factory=list, description="Preferred activities: ['Guided Trek', 'Cultural Workshop', 'Food Walk']")
+    food_preferences: List[str] = Field(default_factory=list, description="Food and dietary preferences: ['Vegetarian', 'Vegan', 'Local Traditional']")
+    transportation_preferences: List[str] = Field(default_factory=list, description="Preferred transit methods: ['Train', 'Flight', 'Private Cab']")
+    preferred_trip_duration: int = Field(default=5, ge=1, le=60, description="Preferred trip duration in days")
+
+    # Backward Compatibility & Legacy Fields
     budget_preference: str = Field(default="₹₹", max_length=10)
     preferred_pace: str = Field(default="balanced", max_length=20)
     travel_styles: List[str] = Field(default_factory=lambda: ["Slow travel", "Culture-led"])
@@ -25,6 +37,18 @@ class UserTravelPreferenceCreate(UserTravelPreferenceBase):
 
 
 class UserTravelPreferenceUpdate(BaseModel):
+    # Core Personalization Preferences
+    preferred_destinations: Optional[List[str]] = None
+    interests: Optional[List[str]] = None
+    travel_style: Optional[str] = None
+    budget_range: Optional[str] = None
+    preferred_accommodation: Optional[List[str]] = None
+    preferred_activities: Optional[List[str]] = None
+    food_preferences: Optional[List[str]] = None
+    transportation_preferences: Optional[List[str]] = None
+    preferred_trip_duration: Optional[int] = Field(None, ge=1, le=60)
+
+    # Backward Compatibility & Legacy Fields
     budget_preference: Optional[str] = None
     preferred_pace: Optional[str] = None
     travel_styles: Optional[List[str]] = None
@@ -41,6 +65,7 @@ class UserTravelPreferenceOut(UserTravelPreferenceBase):
     user_id: uuid.UUID
     created_at: datetime
     updated_at: datetime
+
 
 
 # ---------------------------------------------------------

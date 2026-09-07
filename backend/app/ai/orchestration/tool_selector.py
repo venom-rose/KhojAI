@@ -68,7 +68,15 @@ class ToolSelector:
                 args = {"query": user_query, "limit_per_category": 3}
             elif tool_name == "get_user_preferences":
                 args = {"user_id": user_id}
+            elif tool_name == "get_personalized_recommendations":
+                args = {
+                    "category": analysis.entities.get("category", "all"),
+                    "destination": dest if dest != "India" else None,
+                    "user_id": user_id,
+                    "limit": 5,
+                }
             elif tool_name == "save_trip":
+
                 args = {
                     "title": f"Journey to {dest}",
                     "summary": f"Curated travel plan for {dest}",

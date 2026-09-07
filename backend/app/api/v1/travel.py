@@ -1,9 +1,12 @@
 """Travel Provider API endpoints for KHOJAI (Amadeus, Google Places, OpenTripMap, Geoapify, Nominatim, and Local DB)."""
 
 from typing import Any, Dict, List, Optional
+import uuid
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.app.api.deps import get_optional_current_user
+from backend.app.models.user import User
 from backend.app.database.session import get_db
 from backend.app.travel.schemas.internal import (
     TravelActivity,
@@ -339,3 +342,28 @@ async def proxy_place_photo(photo_name: str):
         media_type=content_type,
         headers={"Cache-Control": "public, max-age=86400"},
     )
+
+
+# --- Personalized Recommendations ---
+@router.get(
+    "/recommendations",
+    summary="Personalized Travel Recommendations",
+    description="Retrieve explainable, multi-factor scored travel recommendations tailored to user preferences across destinations, hotels, activities, restaurants, and itineraries.",
+)
+async def get_personalized_recommendations(
+    category: str = Query("all", description="Category: 'all', 'destinations', 'hotels', 'activities', 'restaurants', 'itineraries'"),
+    destination: Optional[str] = Query(None, description="Optional destination name to scope recommendations"),
+    limit: int = Query(10, ge=1, le=50, description="Max recommendations to return"),
+    current_user: Optional[User] = Depends(get_optional_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    from backend.app.travel.services.recommendation_engine import recommendation_engine
+    user_id = current_user.id if current_user else uuid.UUID("00000000-0000-0000-0000-000000000000")
+    return await recommendation_engine.get_personalized_recommendations(
+        session=db,
+        user_id=user_id,
+        category=category,
+        destination_name=destination,
+        limit=limit,
+    )
+

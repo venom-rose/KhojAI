@@ -415,6 +415,7 @@ class ChatService:
 
         accumulated_chunks: List[str] = []
         model_used = data.model or conversation.model or "khojai-model"
+        latest_meta_event: Dict[str, Any] = {}
 
         try:
             async for token, meta_event in self.agent.stream_run(
@@ -424,19 +425,28 @@ class ChatService:
                 model=model_used,
             ):
                 if meta_event:
+                    latest_meta_event.update(meta_event)
                     yield f"event: agent_activity\ndata: {json.dumps(meta_event)}\n\n"
                 accumulated_chunks.append(token)
                 chunk_payload = json.dumps({"token": token, "done": False})
                 yield f"event: token\ndata: {chunk_payload}\n\n"
 
             full_content = "".join(accumulated_chunks)
+            structured_cards = latest_meta_event.get("structured_cards", [])
+
             assistant_msg = ChatMessage(
                 conversation_id=conversation.id,
                 sender_type="assistant",
                 content=full_content,
                 model_name=model_used,
                 token_count=int(len(full_content.split()) * 1.3),
-                metadata_json={"streamed": True, "provider": getattr(self.provider, "default_model", "ai")},
+                metadata_json={
+                    "streamed": True,
+                    "provider": getattr(self.provider, "default_model", "ai"),
+                    "intent": latest_meta_event.get("intent"),
+                    "tools_used": latest_meta_event.get("tools_called", []),
+                    "structured_cards": structured_cards,
+                },
             )
             db.add(assistant_msg)
             conversation.updated_at = datetime.now(timezone.utc)
@@ -449,6 +459,9 @@ class ChatService:
                 "model": model_used,
                 "done": True,
                 "finish_reason": "stop",
+                "structured_cards": structured_cards,
+                "tools_used": latest_meta_event.get("tools_called", []),
+                "intent": latest_meta_event.get("intent"),
             })
             yield f"event: done\ndata: {done_payload}\n\n"
 

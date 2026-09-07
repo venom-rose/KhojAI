@@ -209,6 +209,15 @@ class TripService:
         if not pref:
             pref = await self.trip_repo.upsert_user_preference(
                 user_id=user_id,
+                preferred_destinations=[],
+                interests=["Culture", "Nature", "Heritage"],
+                travel_style="Cultural",
+                budget_range="moderate",
+                preferred_accommodation=["Homestay", "Heritage Haveli"],
+                preferred_activities=["Sightseeing", "Cultural Workshop"],
+                food_preferences=["Local Traditional"],
+                transportation_preferences=["Train", "Flight"],
+                preferred_trip_duration=5,
                 budget_preference="₹₹",
                 preferred_pace="balanced",
                 travel_styles=["Slow travel", "Culture-led"],
@@ -221,5 +230,18 @@ class TripService:
 
     async def update_user_preferences(self, user_id: UUID, data: UserTravelPreferenceUpdate) -> UserTravelPreferenceOut:
         update_kwargs = data.model_dump(exclude_unset=True)
+        # Synchronize corresponding legacy fields if updated
+        if "travel_style" in update_kwargs and update_kwargs["travel_style"]:
+            styles = list(update_kwargs.get("travel_styles") or [])
+            if update_kwargs["travel_style"] not in styles:
+                styles.append(update_kwargs["travel_style"])
+            update_kwargs["travel_styles"] = styles
+        if "budget_range" in update_kwargs and update_kwargs["budget_range"]:
+            range_map = {"budget": "₹", "moderate": "₹₹", "luxury": "₹₹₹"}
+            update_kwargs["budget_preference"] = range_map.get(update_kwargs["budget_range"].lower(), "₹₹")
+        if "preferred_accommodation" in update_kwargs and update_kwargs["preferred_accommodation"]:
+            update_kwargs["preferred_stay_types"] = update_kwargs["preferred_accommodation"]
+
         pref = await self.trip_repo.upsert_user_preference(user_id=user_id, **update_kwargs)
         return UserTravelPreferenceOut.model_validate(pref)
+
