@@ -35,7 +35,7 @@ export function ChatModal({ isOpen, onClose, initialConversationId, onOpenAuth }
   const [activeConvId, setActiveConvId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputPrompt, setInputPrompt] = useState("");
-  const [selectedModel, setSelectedModel] = useState("khojai-local-v1");
+  const [selectedModel, setSelectedModel] = useState("gemini-3.6-flash");
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamedText, setStreamedText] = useState("");
   const [streamingActivity, setStreamingActivity] = useState<AgentActivityEvent | null>(null);
@@ -283,8 +283,8 @@ export function ChatModal({ isOpen, onClose, initialConversationId, onOpenAuth }
               onChange={(e) => setSelectedModel(e.target.value)}
               className="rounded-full border border-line bg-white px-2.5 py-1 text-[11px] font-medium text-ink/70 outline-none hover:border-ink"
             >
+              <option value="gemini-3.6-flash">Gemini 3.6 Flash</option>
               <option value="khojai-local-v1">KhojAI Local</option>
-              <option value="gemini-1.5-flash">Gemini Flash</option>
               <option value="gpt-4o-mini">GPT-4o mini</option>
             </select>
 

@@ -58,18 +58,18 @@ class Settings(BaseSettings):
     REDIS_ENABLED: bool = False
 
     # AI & LLM Configuration
-    AI_PROVIDER: str = "local"  # "local", "gemini", "openai"
+    AI_PROVIDER: str = "gemini"  # "local", "gemini", "openai"
     AI_API_KEY: str = ""
     GEMINI_API_KEY: str = ""
-    GEMINI_MODEL_NAME: str = "gemini-1.5-flash"
+    GEMINI_MODEL_NAME: str = "gemini-3.6-flash"
     OPENAI_API_KEY: str = ""
     OPENAI_MODEL_NAME: str = "gpt-4o-mini"
     AI_MODEL_NAME: str = "khojai-explorer-v1"
     AI_TEMPERATURE: float = 0.7
     AI_TIMEOUT_SECONDS: float = 30.0
     AI_MAX_RETRIES: int = 3
-    EMBEDDING_PROVIDER: str = "local"
-    EMBEDDING_MODEL_NAME: str = "text-embedding-004"
+    EMBEDDING_PROVIDER: str = "gemini"
+    EMBEDDING_MODEL_NAME: str = "gemini-embedding-001"
 
     # Media & Storage
     STORAGE_BACKEND: str = "local"

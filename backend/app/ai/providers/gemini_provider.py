@@ -12,12 +12,18 @@ class GeminiProvider(BaseAIProvider):
     def __init__(
         self,
         api_key: str,
-        default_model: str = "gemini-1.5-flash",
+        default_model: str = "gemini-3.6-flash",
         default_temperature: float = 0.7,
     ):
         self.api_key = api_key
         self.default_model = default_model
         self.default_temperature = default_temperature
+
+    def _normalize_model(self, model: Optional[str]) -> str:
+        """Remap legacy/deprecated Gemini models to active gemini-3.6-flash."""
+        if not model or model in ("gemini-1.5-flash", "gemini-2.5-flash", "gemini-1.5-pro", "gemini"):
+            return self.default_model
+        return model
 
     def _convert_messages(self, messages: List[Dict[str, str]], system_prompt: Optional[str] = None):
         """Convert standard role/content messages to Gemini contents structure."""
@@ -51,7 +57,7 @@ class GeminiProvider(BaseAIProvider):
         if not self.api_key:
             raise ValueError("GEMINI_API_KEY is not configured on the server.")
 
-        selected_model = model or self.default_model
+        selected_model = self._normalize_model(model)
         contents, system_instruction = self._convert_messages(messages, system_prompt)
 
         payload: Dict = {
@@ -128,7 +134,7 @@ class GeminiProvider(BaseAIProvider):
         if not self.api_key:
             raise ValueError("GEMINI_API_KEY is not configured on the server.")
 
-        selected_model = model or self.default_model
+        selected_model = self._normalize_model(model)
         contents, system_instruction = self._convert_messages(messages, system_prompt)
 
         payload: Dict = {

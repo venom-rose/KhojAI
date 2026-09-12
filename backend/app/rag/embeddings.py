@@ -92,23 +92,27 @@ class GeminiEmbeddingProvider(BaseEmbeddingProvider):
 
     BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
 
-    def __init__(self, api_key: str, model: str = "text-embedding-004"):
+    def __init__(self, api_key: str, model: str = "gemini-embedding-001"):
         self.api_key = api_key
-        self.model = model
+        self.model = "gemini-embedding-001" if model in ("text-embedding-004", "text-embedding") else model
 
     async def embed_text(self, text: str) -> List[float]:
         if not self.api_key:
             # Fallback to local if key is omitted
             return await LocalEmbeddingProvider().embed_text(text)
 
-        url = f"{self.BASE_URL}/models/{self.model}:embedContent?key={self.api_key}"
+        url = f"{self.BASE_URL}/models/{self.model}:embedContent"
         payload = {
             "model": f"models/{self.model}",
             "content": {"parts": [{"text": text[:20000]}]},
         }
+        headers = {
+            "x-goog-api-key": self.api_key,
+            "Content-Type": "application/json",
+        }
 
         async with httpx.AsyncClient(timeout=30.0) as client:
-            res = await client.post(url, json=payload)
+            res = await client.post(url, json=payload, headers=headers)
             if res.status_code == 200:
                 data = res.json()
                 return data.get("embedding", {}).get("values", [])
@@ -182,7 +186,7 @@ def get_embedding_provider() -> BaseEmbeddingProvider:
     if provider == "gemini" and (settings.GEMINI_API_KEY or settings.AI_API_KEY):
         return GeminiEmbeddingProvider(
             api_key=settings.GEMINI_API_KEY or settings.AI_API_KEY,
-            model=settings.EMBEDDING_MODEL_NAME or "text-embedding-004",
+            model=settings.EMBEDDING_MODEL_NAME or "gemini-embedding-001",
         )
     elif provider == "openai" and (settings.OPENAI_API_KEY or settings.AI_API_KEY):
         return OpenAIEmbeddingProvider(

@@ -31,8 +31,8 @@ class GeminiProvider(BaseAIProvider):
     def __init__(
         self,
         api_key: str,
-        default_model: str = "gemini-1.5-flash",
-        default_embedding_model: str = "text-embedding-004",
+        default_model: str = "gemini-3.6-flash",
+        default_embedding_model: str = "gemini-embedding-001",
         default_temperature: float = 0.7,
         timeout_seconds: Optional[float] = None,
         max_retries: Optional[int] = None,
@@ -43,6 +43,12 @@ class GeminiProvider(BaseAIProvider):
         self.default_temperature = default_temperature
         self.timeout_seconds = timeout_seconds or settings.AI_TIMEOUT_SECONDS
         self.max_retries = max_retries or settings.AI_MAX_RETRIES
+
+    def _normalize_model(self, model: Optional[str]) -> str:
+        """Remap legacy/deprecated Gemini models to active gemini-3.6-flash."""
+        if not model or model in ("gemini-1.5-flash", "gemini-2.5-flash", "gemini-1.5-pro", "gemini"):
+            return self.default_model
+        return model
 
     def _convert_messages(self, messages: List[Dict[str, str]], system_prompt: Optional[str] = None):
         contents = []
@@ -60,16 +66,23 @@ class GeminiProvider(BaseAIProvider):
 
         return contents, system_instruction
 
-    async def _post_with_retry(self, url: str, json_data: dict) -> httpx.Response:
+    async def _post_with_retry(self, url: str, json_data: dict, headers: Optional[Dict[str, str]] = None) -> httpx.Response:
         """Execute POST request with timeout and exponential backoff retry."""
         if not self.api_key:
             raise AIProviderAuthError("GEMINI_API_KEY is not configured on the server.", provider="gemini")
+
+        req_headers = {
+            "x-goog-api-key": self.api_key,
+            "Content-Type": "application/json",
+        }
+        if headers:
+            req_headers.update(headers)
 
         last_exc: Optional[Exception] = None
         for attempt in range(self.max_retries):
             try:
                 async with httpx.AsyncClient(timeout=self.timeout_seconds) as client:
-                    response = await client.post(url, json=json_data)
+                    response = await client.post(url, json=json_data, headers=req_headers)
 
                 # Check HTTP status
                 if response.status_code == 200:
@@ -120,7 +133,7 @@ class GeminiProvider(BaseAIProvider):
         **kwargs,
     ) -> AIResponse:
         """Call Gemini generateContent endpoint with retry & timeout."""
-        selected_model = model or self.default_model
+        selected_model = self._normalize_model(model)
         contents, system_instruction = self._convert_messages(messages, system_prompt)
 
         payload: Dict[str, Any] = {
@@ -132,7 +145,7 @@ class GeminiProvider(BaseAIProvider):
         if system_instruction:
             payload["systemInstruction"] = system_instruction
 
-        url = f"{self.BASE_URL}/models/{selected_model}:generateContent?key={self.api_key}"
+        url = f"{self.BASE_URL}/models/{selected_model}:generateContent"
         response = await self._post_with_retry(url, payload)
 
         data = response.json()
@@ -165,7 +178,7 @@ class GeminiProvider(BaseAIProvider):
         if not self.api_key:
             raise AIProviderAuthError("GEMINI_API_KEY is not configured.", provider="gemini")
 
-        selected_model = model or self.default_model
+        selected_model = self._normalize_model(model)
         contents, system_instruction = self._convert_messages(messages, system_prompt)
 
         payload: Dict[str, Any] = {
@@ -177,11 +190,15 @@ class GeminiProvider(BaseAIProvider):
         if system_instruction:
             payload["systemInstruction"] = system_instruction
 
-        url = f"{self.BASE_URL}/models/{selected_model}:streamGenerateContent?alt=sse&key={self.api_key}"
+        url = f"{self.BASE_URL}/models/{selected_model}:streamGenerateContent?alt=sse"
+        headers = {
+            "x-goog-api-key": self.api_key,
+            "Content-Type": "application/json",
+        }
 
         try:
             async with httpx.AsyncClient(timeout=self.timeout_seconds) as client:
-                async with client.stream("POST", url, json=payload) as response:
+                async with client.stream("POST", url, json=payload, headers=headers) as response:
                     if response.status_code == 401 or response.status_code == 403:
                         raise AIProviderAuthError("Gemini streaming authentication failed.", provider="gemini")
                     if response.status_code == 429:
@@ -222,11 +239,12 @@ class GeminiProvider(BaseAIProvider):
         if isinstance(texts, str):
             texts = [texts]
 
-        selected_model = model or self.default_embedding_model
+        raw_model = model or self.default_embedding_model
+        selected_model = "gemini-embedding-001" if raw_model in ("text-embedding-004", "text-embedding") else raw_model
         results = []
 
         for text in texts:
-            url = f"{self.BASE_URL}/models/{selected_model}:embedContent?key={self.api_key}"
+            url = f"{self.BASE_URL}/models/{selected_model}:embedContent"
             payload = {
                 "model": f"models/{selected_model}",
                 "content": {"parts": [{"text": text[:20000]}]},
